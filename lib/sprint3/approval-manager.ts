@@ -140,6 +140,57 @@ export class ApprovalManager {
     return { success: true }
   }
 
+  async cancelAction(
+    approvalId: string,
+    userId: string,
+    organizationId: string,
+    reason?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const canApprove = await this.canUserApprove(userId, organizationId)
+    if (!canApprove.can) return { success: false, error: canApprove.reason }
+
+    const { data: approval, error: loadError } = await this.supabase
+      .from('approval_requests')
+      .select('id, approval_status, organization_id, action_id')
+      .eq('id', approvalId)
+      .eq('organization_id', organizationId)
+      .single()
+
+    if (loadError || !approval) return { success: false, error: 'Approval not found' }
+
+    // Only pending approvals can be cancelled; completed/rejected cannot
+    const nonCancellable = ['approved', 'rejected', 'cancelled', 'expired']
+    if (nonCancellable.includes(approval.approval_status)) {
+      return { success: false, error: `Cannot cancel: approval status is ${approval.approval_status}` }
+    }
+
+    const { error: updateError } = await this.supabase
+      .from('approval_requests')
+      .update({
+        approval_status: 'cancelled',
+        approved_by: userId,
+        approval_notes: reason ?? 'Cancelled by user',
+        approved_at: new Date().toISOString(),
+      })
+      .eq('id', approvalId)
+      .eq('organization_id', organizationId)
+
+    if (updateError) return { success: false, error: updateError.message }
+
+    // Also cancel the linked action if it is still in a cancellable state
+    if (approval.action_id) {
+      await this.supabase
+        .from('autonomous_actions')
+        .update({ execution_status: 'cancelled' })
+        .eq('id', approval.action_id)
+        .eq('organization_id', organizationId)
+        .in('execution_status', ['queued', 'scheduled'])
+    }
+
+    await this.logApprovalAction(userId, organizationId, approvalId, 'cancelled', reason)
+    return { success: true }
+  }
+
   async getPendingApprovals(organizationId: string): Promise<any[]> {
     const { data, error } = await this.supabase
       .from('approval_requests')
@@ -172,7 +223,7 @@ export class ApprovalManager {
     userId: string,
     organizationId: string,
     approvalId: string,
-    action: 'approved' | 'rejected',
+    action: 'approved' | 'rejected' | 'cancelled',
     details?: string
   ): Promise<void> {
     try {
