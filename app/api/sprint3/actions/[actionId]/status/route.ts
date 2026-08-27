@@ -13,10 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: { actionId
     const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {
         getAll() {
-          return request.cookies.getSetCookie().map((cookie) => ({
-            name: cookie.split('=')[0],
-            value: decodeURIComponent(cookie.split('=')[1]),
-          }))
+          return request.cookies.getAll()
         },
         setAll() {},
       },

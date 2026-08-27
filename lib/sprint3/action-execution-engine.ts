@@ -211,7 +211,7 @@ export class ActionExecutionEngine {
       passedChecks.push('no_budget_cost')
     }
 
-    // ── 11. Atomic idempotency claim ──────────────────────────────────────────
+    // ── 10. Atomic idempotency claim ──────────────────────────────────────────
     const idempKey = action.idempotency_key
     if (!idempKey) {
       return { ...(await blockWith('Action has no idempotency key', 'idempotency_key_missing')), actionId }
@@ -224,7 +224,7 @@ export class ActionExecutionEngine {
     }
     passedChecks.push('idempotency_claimed')
 
-    // ── 12. Execute internal mocked handler ───────────────────────────────────
+    // ── 11. Execute internal mocked handler ───────────────────────────────────
     await this.audit(orgId, userId, 'execution_started', `action:${actionId}`, 'Execution started', { passedChecks })
     try {
       const result = await this.performAction(action)
