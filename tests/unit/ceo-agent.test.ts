@@ -7,7 +7,7 @@ describe('AI CEO Agent', () => {
   it('should build system prompt', () => {
     expect(agent.systemPrompt).toContain('AI CEO')
     expect(agent.systemPrompt).toContain('company goals')
-    expect(agent.systemPrompt).toContain('constraints')
+    expect(agent.systemPrompt).toContain('Constraints')
   })
 
   it('should extract tasks from response', () => {
