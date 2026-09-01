@@ -57,20 +57,45 @@ export class DecisionLogger {
   }
 
   /**
-   * Search decision history
+   * Search decision history using PostgreSQL full-text search.
+   * Uses the GIN index on searchable_text (to_tsvector('english', searchable_text))
+   * defined in migration 04_phase4_executive_command_center.sql.
+   * Falls back to returning recent decisions if query is empty.
    */
   async searchDecisions(
     organizationId: string,
     query: string,
     limit: number = 20
   ): Promise<ExecutiveDecision[]> {
-    const { data } = await this.supabase
+    if (!query.trim()) {
+      const { data } = await this.supabase
+        .from('executive_decisions')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .order('decision_date', { ascending: false })
+        .limit(limit)
+      return data || []
+    }
+
+    // Use PostgreSQL FTS via the GIN index idx_decisions_search
+    const { data, error } = await this.supabase
       .from('executive_decisions')
       .select('*')
       .eq('organization_id', organizationId)
-      .or(`decision_title.ilike.%${query}%,decision_content.ilike.%${query}%,reason.ilike.%${query}%`)
+      .textSearch('searchable_text', query, { type: 'websearch', config: 'english' })
       .order('decision_date', { ascending: false })
       .limit(limit)
+
+    if (error) {
+      // Graceful fallback: if FTS fails (e.g. searchable_text null), use recent decisions
+      const { data: fallback } = await this.supabase
+        .from('executive_decisions')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .order('decision_date', { ascending: false })
+        .limit(limit)
+      return fallback || []
+    }
 
     return data || []
   }
