@@ -90,7 +90,7 @@ export function DepartmentArea({
                           : agent.status === 'waiting'
                           ? '#06b6d4'
                           : '#6b7280',
-                    }},
+                    }}
                   />
                   <span className="text-xs text-slate-400 capitalize">{agent.status}</span>
                 </div>

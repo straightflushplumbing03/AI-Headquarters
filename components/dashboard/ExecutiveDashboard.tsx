@@ -227,7 +227,7 @@ export function ExecutiveDashboard() {
                           : agent.status === 'working'
                           ? '#f59e0b'
                           : '#6b7280',
-                    }},
+                    }}
                   />
                   <span className="text-xs text-slate-500 capitalize">{agent.status}</span>
                 </div>
