@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { OpenAIProvider, PendingProvider } from '../providers'
+import { OpenAIProvider, PendingProvider } from '@/lib/ai/providers'
 import type { AIExecutionRequest } from '@/types/ai'
 
 describe('AI Providers', () => {
@@ -60,7 +60,7 @@ describe('AI Providers', () => {
 
       const result = await provider.execute(request)
       expect(result.success).toBe(false)
-      expect(result.content).toContain('PROVIDER PENDING')
+      expect(result.content).toContain('BUSINESS BRAIN')
     })
   })
 })

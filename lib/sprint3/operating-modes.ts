@@ -4,7 +4,18 @@
  * SHADOW: Analyze and prepare, NO external execution
  * APPROVAL: All high-risk actions require human approval (default)
  * AUTONOMOUS: Level 1 auto-executes, Level 2+ requires approval
+ *
+ * Mode is loaded from persistent DB (ai_usage_limits.approval_level) first;
+ * falls back to 'approval' (safe default) when unavailable.
+ *
+ * Risk → Sprint 3 semantic mapping (using actual Phase 6 schema values):
+ *   low      → LOW            (level_1, autonomous approval_level)
+ *   medium   → CONTROLLED     (level_2, controlled approval_level)
+ *   high     → APPROVAL_REQUIRED (level_3, approval_required approval_level)
+ *   critical → PROHIBITED     (level_4, human_only approval_level — never autonomous)
  */
+
+import { SupabaseClient } from '@supabase/supabase-js'
 
 export type OperatingMode = 'shadow' | 'approval' | 'autonomous'
 
@@ -27,35 +38,69 @@ export const OPERATING_MODES: Record<OperatingMode, ModeConfig> = {
   },
   autonomous: {
     mode: 'autonomous',
-    description: 'Autonomous Mode: Level 1 can auto-execute, Level 2+ requires approval',
+    description: 'Autonomous Mode: Level 1/low can auto-execute, Level 2+ requires approval',
     allowAutoExecution: true,
   },
 }
 
+/**
+ * Map Phase 6 approval_level DB values to OperatingMode
+ * 'autonomous' → autonomous, 'controlled'|'approval_required' → approval, everything else → approval
+ */
+export function dbApprovalLevelToMode(dbLevel: string | null | undefined): OperatingMode {
+  if (dbLevel === 'autonomous') return 'autonomous'
+  // controlled and approval_required both require approval
+  return 'approval'
+}
+
 export class OperatingModeManager {
-  private organizationModes: Map<string, OperatingMode> = new Map()
+  constructor(private supabase?: SupabaseClient) {}
 
-  setMode(organizationId: string, mode: OperatingMode): void {
-    if (!OPERATING_MODES[mode]) throw new Error(`Invalid mode: ${mode}`)
-    this.organizationModes.set(organizationId, mode)
+  /**
+   * Load authoritative mode from DB; fall back to 'approval' (safe default).
+   * Never trusts caller-supplied mode.
+   */
+  async getModePersistent(organizationId: string): Promise<OperatingMode> {
+    if (!this.supabase) return 'approval'
+    try {
+      const { data } = await this.supabase
+        .from('ai_usage_limits')
+        .select('approval_level')
+        .eq('organization_id', organizationId)
+        .single()
+
+      if (!data) return 'approval'
+      return dbApprovalLevelToMode(data.approval_level)
+    } catch {
+      // Fail closed
+      return 'approval'
+    }
   }
 
-  getMode(organizationId: string): OperatingMode {
-    return this.organizationModes.get(organizationId) || 'approval'
+  getModeConfig(mode: OperatingMode): ModeConfig {
+    return OPERATING_MODES[mode]
   }
 
-  getModeConfig(organizationId: string): ModeConfig {
-    return OPERATING_MODES[this.getMode(organizationId)]
-  }
-
+  /**
+   * Returns true when the action requires human approval given the operating mode,
+   * risk level, and authorization level.
+   *
+   * Risk mapping:
+   *   low      → LOW (level_1) — may auto-execute in autonomous mode
+   *   medium   → CONTROLLED (level_2) — requires approval
+   *   high     → APPROVAL_REQUIRED (level_3) — requires approval
+   *   critical → PROHIBITED (level_4) — never autonomous
+   */
   requiresApproval(
-    organizationId: string,
+    mode: OperatingMode,
     authorizationLevel: 1 | 2 | 3 | 4,
     riskLevel: 'low' | 'medium' | 'high' | 'critical'
   ): boolean {
-    const mode = this.getMode(organizationId)
+    // Shadow always blocks execution (records "would execute")
     if (mode === 'shadow') return true
+    // Approval mode always requires approval
     if (mode === 'approval') return true
+    // Autonomous mode: only level_1 + low risk may auto-execute
     if (mode === 'autonomous') {
       if (authorizationLevel === 1 && riskLevel === 'low') return false
       return true

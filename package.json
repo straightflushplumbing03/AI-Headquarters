@@ -18,12 +18,12 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,md,json}\""
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.38.0",
-    "@supabase/ssr": "^0.0.10",
     "@headlessui/react": "^1.7.17",
+    "@supabase/ssr": "^0.0.10",
+    "@supabase/supabase-js": "^2.38.0",
+    "next": "^14.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "next": "^14.0.0",
     "zustand": "^4.4.1"
   },
   "devDependencies": {
