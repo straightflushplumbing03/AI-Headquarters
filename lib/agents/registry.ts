@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
-import type { AgentRegistry, AgentCapability } from '@/types/phase3'
+import type { AgentRegistry as AgentRegistryType, AgentCapability } from '@/types/phase3'
 
 /**
  * Agent Registry & Management
@@ -13,8 +13,8 @@ export class AgentRegistry {
    */
   async registerAgent(
     organizationId: string,
-    agent: Omit<AgentRegistry, 'id' | 'created_at' | 'updated_at'>
-  ): Promise<AgentRegistry> {
+    agent: Omit<AgentRegistryType, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<AgentRegistryType> {
     const { data, error } = await this.supabase
       .from('agent_registry')
       .insert([{ ...agent, organization_id: organizationId }])
@@ -31,7 +31,7 @@ export class AgentRegistry {
   async getAgents(
     organizationId: string,
     status?: 'active' | 'inactive' | 'archived'
-  ): Promise<AgentRegistry[]> {
+  ): Promise<AgentRegistryType[]> {
     let query = this.supabase
       .from('agent_registry')
       .select('*')
@@ -50,7 +50,7 @@ export class AgentRegistry {
   /**
    * Get agent by ID
    */
-  async getAgent(agentId: string): Promise<AgentRegistry> {
+  async getAgent(agentId: string): Promise<AgentRegistryType> {
     const { data, error } = await this.supabase
       .from('agent_registry')
       .select('*')
@@ -67,7 +67,7 @@ export class AgentRegistry {
   async getAgentsByType(
     organizationId: string,
     type: string
-  ): Promise<AgentRegistry[]> {
+  ): Promise<AgentRegistryType[]> {
     const { data, error } = await this.supabase
       .from('agent_registry')
       .select('*')
@@ -84,8 +84,8 @@ export class AgentRegistry {
    */
   async updateAgent(
     agentId: string,
-    updates: Partial<Omit<AgentRegistry, 'id' | 'organization_id' | 'created_at'>>
-  ): Promise<AgentRegistry> {
+    updates: Partial<Omit<AgentRegistryType, 'id' | 'organization_id' | 'created_at'>>
+  ): Promise<AgentRegistryType> {
     const { data, error } = await this.supabase
       .from('agent_registry')
       .update({ ...updates, updated_at: new Date().toISOString() })

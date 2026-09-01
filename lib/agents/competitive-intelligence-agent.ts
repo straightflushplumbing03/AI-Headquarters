@@ -54,7 +54,7 @@ Provide 5+ findings about their online presence, services, positioning, and our 
     return await this.executeResearch(userId, userMessage)
   }
 
-  private async executeResearch(userId: string, userMessage: string): Promise<AIExecutionResult> {
+  private async executeResearch(_userId: string, userMessage: string): Promise<AIExecutionResult> {
     const provider = getAIProvider()
     const request: AIExecutionRequest = {
       organizationId: this.organizationId,
@@ -74,6 +74,7 @@ Provide 5+ findings about their online presence, services, positioning, and our 
         inputTokens: 0,
         outputTokens: 0,
         estimatedCost: 0,
+      actualCost: 0,
         executionTimeMs: 0,
         error: error.message,
       }

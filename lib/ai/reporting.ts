@@ -7,7 +7,7 @@ import { SupabaseClient } from '@supabase/supabase-js'
 export class ExecutiveReportGenerator {
   constructor(private supabase: SupabaseClient) {}
 
-  async generateDailyReport(organizationId: string, userId: string): Promise<{
+  async generateDailyReport(organizationId: string, _userId: string): Promise<{
     greeting: string
     summary: string
     metrics: {

@@ -14,7 +14,7 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { AICostController } from '@/lib/ai/cost-controller'
 import type { UserRole } from '@/lib/auth/permissions'
-import { hasPermission } from '@/lib/auth/permissions'
+import { hasPermission as _hasPermission } from '@/lib/auth/permissions'
 
 export type OperatingMode = 'shadow' | 'approval' | 'autonomous'
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'

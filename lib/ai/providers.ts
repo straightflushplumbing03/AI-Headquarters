@@ -6,7 +6,7 @@ export abstract class AIProvider {
   abstract isConfigured: boolean
   abstract status: 'active' | 'pending' | 'error'
   abstract errorMessage?: string
-  abstract execute(request: AIExecutionRequest): Promise<AIExecutionResult>
+  abstract execute(_request: AIExecutionRequest): Promise<AIExecutionResult>
   abstract estimateCost(inputTokens: number, outputTokens: number): number
 }
 
@@ -177,7 +177,7 @@ export class AnthropicProvider extends AIProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
+          'x-api-key': this.apiKey ?? '',
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
@@ -266,10 +266,10 @@ export class PendingProvider extends AIProvider {
   status = 'pending' as const
   errorMessage = 'No AI provider configured'
 
-  async execute(request: AIExecutionRequest): Promise<AIExecutionResult> {
+  async execute(_request: AIExecutionRequest): Promise<AIExecutionResult> {
     return {
       success: false,
-      content: '[BUSINESS BRAIN] Configure OPENAI_API_KEY or ANTHROPIC_API_KEY',
+      content: '[PROVIDER PENDING] Configure OPENAI_API_KEY or ANTHROPIC_API_KEY',
       inputTokens: 0,
       outputTokens: 0,
       estimatedCost: 0,

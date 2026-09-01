@@ -15,9 +15,9 @@ export function CreateTask() {
   const organizationId = params.id as string
   const supabase = createClient()
 
-  const [organization, setOrganization] = useState<Organization | null>(null)
+  const [_organization, setOrganization] = useState<Organization | null>(null)
   const [agents, setAgents] = useState<Agent[]>([])
-  const [departments, setDepartments] = useState<Department[]>([])
+  const [_departments, setDepartments] = useState<Department[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -135,7 +135,7 @@ export function CreateTask() {
             label="Task Title"
             placeholder="What should the AI employee do?"
             value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, title: e.target.value })}
             disabled={submitting}
             required
           />
@@ -146,7 +146,7 @@ export function CreateTask() {
               className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors h-24 resize-none"
               placeholder="Provide detailed instructions..."
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, description: e.target.value })}
               disabled={submitting}
             />
           </div>
@@ -156,7 +156,7 @@ export function CreateTask() {
             <select
               className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
               value={formData.agentId}
-              onChange={(e) => setFormData({ ...formData, agentId: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, agentId: e.target.value })}
               disabled={submitting}
               required
             >
@@ -174,7 +174,7 @@ export function CreateTask() {
             <select
               className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
               value={formData.priority}
-              onChange={(e) =>
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                 setFormData({
                   ...formData,
                   priority: e.target.value as 'low' | 'medium' | 'high' | 'critical',

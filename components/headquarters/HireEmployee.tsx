@@ -222,7 +222,7 @@ export function HireEmployee() {
                   label="Employee Name"
                   placeholder={selectedTemplate.name}
                   value={customName}
-                  onChange={(e) => setCustomName(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCustomName(e.target.value)}
                   disabled={loading}
                 />
 
@@ -233,7 +233,7 @@ export function HireEmployee() {
                   <select
                     className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                     value={selectedDepartment}
-                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedDepartment(e.target.value)}
                     disabled={loading}
                   >
                     <option value="">Select department...</option>

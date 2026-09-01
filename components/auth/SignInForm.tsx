@@ -51,7 +51,7 @@ export function SignInForm() {
           label="Email"
           placeholder="your@email.com"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
           disabled={loading}
           required
         />
@@ -60,7 +60,7 @@ export function SignInForm() {
           label="Password"
           placeholder="Enter your password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
           disabled={loading}
           required
         />

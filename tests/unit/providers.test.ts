@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { OpenAIProvider, PendingProvider } from '../providers'
+import { describe, it, expect } from 'vitest'
+import { OpenAIProvider, PendingProvider } from '@/lib/ai/providers'
 import type { AIExecutionRequest } from '@/types/ai'
 
 describe('AI Providers', () => {

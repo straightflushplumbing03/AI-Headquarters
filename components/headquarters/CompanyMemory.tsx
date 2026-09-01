@@ -5,7 +5,6 @@ import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/browser'
 import { Container } from '@/components/Container'
 import { Card } from '@/components/Card'
-import type { Organization, Agent, Task } from '@/types/models'
 
 export function CompanyMemory() {
   const params = useParams()

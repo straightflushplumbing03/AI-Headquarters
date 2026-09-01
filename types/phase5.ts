@@ -372,7 +372,7 @@ export namespace Phase5 {
     critical_alerts?: string[];
 
     // Metadata
-    generated_by_system: string;
+    generated_by_system: boolean;
     created_at: string;
   }
 

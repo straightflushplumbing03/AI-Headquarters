@@ -2,7 +2,6 @@ import { SupabaseClient } from '@supabase/supabase-js'
 import type {
   TaskWorkflow,
   WorkflowExecution,
-  WorkflowStep,
 } from '@/types/phase3'
 
 /**

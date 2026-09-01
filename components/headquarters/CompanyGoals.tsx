@@ -133,7 +133,7 @@ export function CompanyGoals() {
             <Input
               label="Goal Title"
               value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, title: e.target.value })}
               placeholder="e.g., Increase SEO rankings"
               disabled={submitting}
             />
@@ -143,7 +143,7 @@ export function CompanyGoals() {
               <textarea
                 className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors h-20 resize-none"
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Describe the goal..."
                 disabled={submitting}
               />
@@ -155,7 +155,7 @@ export function CompanyGoals() {
                 <select
                   className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100"
                   value={formData.priority}
-                  onChange={(e) =>
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                     setFormData({ ...formData, priority: e.target.value as any })
                   }
                   disabled={submitting}
@@ -171,7 +171,7 @@ export function CompanyGoals() {
                 label="Target Date"
                 type="date"
                 value={formData.targetDate}
-                onChange={(e) => setFormData({ ...formData, targetDate: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, targetDate: e.target.value })}
                 disabled={submitting}
               />
             </div>
@@ -213,9 +213,9 @@ export function CompanyGoals() {
                 </span>
               </div>
 
-              {goal.target_date && (
+              {goal.targetDate && (
                 <p className="text-xs text-slate-400">
-                  Target: {new Date(goal.target_date).toLocaleDateString()}
+                  Target: {new Date(goal.targetDate).toLocaleDateString()}
                 </p>
               )}
 
