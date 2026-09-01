@@ -1,1 +1,113 @@
-import { SupabaseClient } from '@supabase/supabase-js'\n\nexport interface AIProviderConfig {\n  provider: 'openai' | 'anthropic' | 'pending'\n  model: string\n  apiKey?: string\n  isConfigured: boolean\n  status: 'active' | 'pending' | 'error'\n}\n\nexport interface AIExecutionRequest {\n  organizationId: string\n  agentId: string\n  taskId: string\n  systemPrompt: string\n  userMessage: string\n  maxTokens?: number\n  temperature?: number\n}\n\nexport interface AIExecutionResult {\n  success: boolean\n  content: string\n  inputTokens: number\n  outputTokens: number\n  estimatedCost: number\n  actualCost: number\n  executionTimeMs: number\n  provider?: 'openai' | 'anthropic'\n  model?: string\n  error?: string\n  errorType?: string\n}\n\nexport interface AICostTracking {\n  id: string\n  organizationId: string\n  agentId: string\n  taskId: string\n  provider: string\n  model: string\n  inputTokens: number\n  outputTokens: number\n  estimatedCost: number\n  actualCost: number\n  executionTimeMs: number\n  status: 'success' | 'failed'\n  errorType?: string\n  createdAt: string\n}\n\nexport interface AIUsageLimit {\n  organizationId: string\n  monthlyBudget: number\n  currentSpend: number\n  resetDate: string\n  paused: boolean\n  pauseReason?: string\n}\n\nexport interface AgentSystemPrompt {\n  id: string\n  organizationId: string\n  agentId: string\n  role: string\n  purpose: string\n  constraints: string[]\n  capabilities: string[]\n  systemPrompt: string\n  createdAt: string\n  updatedAt: string\n}\n\nexport interface CompanyGoal {\n  id: string\n  organizationId: string\n  title: string\n  description: string\n  priority: 'low' | 'medium' | 'high' | 'critical'\n  targetDate?: string\n  status: 'active' | 'completed' | 'paused'\n  createdAt: string\n  updatedAt: string\n}\n\nexport interface ApprovalRequest {\n  id: string\n  organizationId: string\n  taskId: string\n  agentId: string\n  type: 'task_execution' | 'knowledge_storage' | 'external_action' | 'budget_exception'\n  title: string\n  description: string\n  proposedAction: string\n  metadata?: Record<string, any>\n  status: 'pending' | 'approved' | 'rejected' | 'expired'\n  createdAt: string\n  expiresAt: string\n  respondedAt?: string\n}\n\nexport interface TaskOutcome {\n  id: string\n  organizationId: string\n  taskId: string\n  agentId: string\n  objective: string\n  result: string\n  success: boolean\n  learnings: string[]\n  metrics?: Record<string, number>\n  createdAt: string\n}\n"
+import { SupabaseClient } from '@supabase/supabase-js'
+
+export interface AIProviderConfig {
+  provider: 'openai' | 'anthropic' | 'pending'
+  model: string
+  apiKey?: string
+  isConfigured: boolean
+  status: 'active' | 'pending' | 'error'
+}
+
+export interface AIExecutionRequest {
+  organizationId: string
+  agentId: string
+  taskId: string
+  systemPrompt: string
+  userMessage: string
+  maxTokens?: number
+  temperature?: number
+}
+
+export interface AIExecutionResult {
+  success: boolean
+  content: string
+  inputTokens: number
+  outputTokens: number
+  estimatedCost: number
+  actualCost: number
+  executionTimeMs: number
+  provider?: 'openai' | 'anthropic'
+  model?: string
+  error?: string
+  errorType?: string
+}
+
+export interface AICostTracking {
+  id: string
+  organizationId: string
+  agentId: string
+  taskId: string
+  provider: string
+  model: string
+  inputTokens: number
+  outputTokens: number
+  estimatedCost: number
+  actualCost: number
+  executionTimeMs: number
+  status: 'success' | 'failed'
+  errorType?: string
+  createdAt: string
+}
+
+export interface AIUsageLimit {
+  organizationId: string
+  monthlyBudget: number
+  currentSpend: number
+  resetDate: string
+  paused: boolean
+  pauseReason?: string
+}
+
+export interface AgentSystemPrompt {
+  id: string
+  organizationId: string
+  agentId: string
+  role: string
+  purpose: string
+  constraints: string[]
+  capabilities: string[]
+  systemPrompt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CompanyGoal {
+  id: string
+  organizationId: string
+  title: string
+  description: string
+  priority: 'low' | 'medium' | 'high' | 'critical'
+  targetDate?: string
+  status: 'active' | 'completed' | 'paused'
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ApprovalRequest {
+  id: string
+  organizationId: string
+  taskId: string
+  agentId: string
+  type: 'task_execution' | 'knowledge_storage' | 'external_action' | 'budget_exception'
+  title: string
+  description: string
+  proposedAction: string
+  metadata?: Record<string, any>
+  status: 'pending' | 'approved' | 'rejected' | 'expired'
+  createdAt: string
+  expiresAt: string
+  respondedAt?: string
+}
+
+export interface TaskOutcome {
+  id: string
+  organizationId: string
+  taskId: string
+  agentId: string
+  objective: string
+  result: string
+  success: boolean
+  learnings: string[]
+  metrics?: Record<string, number>
+  createdAt: string
+}
