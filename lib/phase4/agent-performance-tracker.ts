@@ -73,11 +73,11 @@ export class AgentPerformanceTracker {
     const totalOpportunities = performance.reduce((sum, p) => sum + p.opportunities_discovered, 0)
     const totalOutcomes = performance.reduce((sum, p) => sum + p.outcomes_generated, 0)
     const avgExecutionTime =
-      performance.filter((p) => p.average_execution_time_seconds).reduce((sum, p) => sum + p.average_execution_time_seconds, 0) /
+      performance.filter((p) => p.average_execution_time_seconds).reduce((sum, p) => sum + (p.average_execution_time_seconds ?? 0), 0) /
       (performance.filter((p) => p.average_execution_time_seconds).length || 1)
     const avgAccuracy = performance
       .filter((p) => p.accuracy_score)
-      .reduce((sum, p) => sum + p.accuracy_score, 0) / (performance.filter((p) => p.accuracy_score).length || 1)
+      .reduce((sum, p) => sum + (p.accuracy_score ?? 0), 0) / (performance.filter((p) => p.accuracy_score).length || 1)
 
     const successRate = totalTasksCompleted + totalTasksFailed > 0 ? (totalTasksCompleted / (totalTasksCompleted + totalTasksFailed)) * 100 : 0
 
@@ -100,7 +100,7 @@ export class AgentPerformanceTracker {
   /**
    * Compare agent performance
    */
-  async compareAgentPerformance(organizationId: string, daysBack: number = 30): Promise<any[]> {
+  async compareAgentPerformance(organizationId: string, _daysBack: number = 30): Promise<any[]> {
     const { data: agents } = await this.supabase
       .from('agent_registry')
       .select('id, name')

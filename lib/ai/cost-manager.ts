@@ -31,8 +31,8 @@ export class AICostManager {
   async recordCost(
     organizationId: string,
     cost: number,
-    agentId?: string,
-    taskId?: string
+    _agentId?: string,
+    _taskId?: string
   ): Promise<void> {
     const { data: limits } = await this.supabase
       .from('ai_usage_limits')

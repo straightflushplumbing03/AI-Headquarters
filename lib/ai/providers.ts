@@ -177,7 +177,7 @@ export class AnthropicProvider extends AIProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
+          'x-api-key': this.apiKey as string,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
@@ -266,7 +266,7 @@ export class PendingProvider extends AIProvider {
   status = 'pending' as const
   errorMessage = 'No AI provider configured'
 
-  async execute(request: AIExecutionRequest): Promise<AIExecutionResult> {
+  async execute(_request: AIExecutionRequest): Promise<AIExecutionResult> {
     return {
       success: false,
       content: '[BUSINESS BRAIN] Configure OPENAI_API_KEY or ANTHROPIC_API_KEY',

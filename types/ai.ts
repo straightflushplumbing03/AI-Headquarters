@@ -1,4 +1,3 @@
-import { SupabaseClient } from '@supabase/supabase-js'
 
 export interface AIProviderConfig {
   provider: 'openai' | 'anthropic' | 'pending'
@@ -24,7 +23,7 @@ export interface AIExecutionResult {
   inputTokens: number
   outputTokens: number
   estimatedCost: number
-  actualCost: number
+  actualCost?: number
   executionTimeMs: number
   provider?: 'openai' | 'anthropic'
   model?: string

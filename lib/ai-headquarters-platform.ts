@@ -23,7 +23,7 @@ export class AIHeadquartersPlatform {
   private safety: SafetyAndCompliance;
   private health: SystemHealthMonitor;
 
-  constructor(private supabase: SupabaseClient) {
+  constructor(supabase: SupabaseClient) {
     this.phase6 = new Phase6Orchestrator(supabase);
     this.phase7 = new Phase7LearningOrchestrator(supabase);
     this.executiveCenter = new ExecutiveCommandCenter(supabase);

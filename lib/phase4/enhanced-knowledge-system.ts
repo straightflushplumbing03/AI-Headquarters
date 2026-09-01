@@ -95,20 +95,20 @@ export class EnhancedKnowledgeSystem {
    * Get knowledge summary
    */
   async getKnowledgeSummary(organizationId: string): Promise<any> {
-    const learnings = await this.supabase
+    const { data: learnings } = await this.supabase
       .from('strategic_learnings')
       .select('count')
       .eq('organization_id', organizationId)
 
-    const patterns = await this.supabase
+    const { data: patterns } = await this.supabase
       .from('discovered_patterns')
       .select('count')
       .eq('organization_id', organizationId)
 
     return {
-      total_learnings: learnings?.[0]?.count || 0,
-      total_patterns: patterns?.[0]?.count || 0,
-      knowledge_base_size: (learnings?.[0]?.count || 0) + (patterns?.[0]?.count || 0),
+      total_learnings: (learnings as Array<{ count: number }> | null)?.[0]?.count || 0,
+      total_patterns: (patterns as Array<{ count: number }> | null)?.[0]?.count || 0,
+      knowledge_base_size: ((learnings as Array<{ count: number }> | null)?.[0]?.count || 0) + ((patterns as Array<{ count: number }> | null)?.[0]?.count || 0),
       status: 'operational',
     }
   }

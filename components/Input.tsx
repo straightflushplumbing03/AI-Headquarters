@@ -1,5 +1,7 @@
 'use client'
 
+import type { InputHTMLAttributes } from 'react'
+
 export function Input({
   label,
   error,
@@ -9,8 +11,7 @@ export function Input({
   label?: string
   error?: string
   className?: string
-  [key: string]: any
-}) {
+} & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className="w-full">
       {label && (

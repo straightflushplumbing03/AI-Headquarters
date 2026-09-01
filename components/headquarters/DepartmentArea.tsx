@@ -1,7 +1,6 @@
 'use client'
 
 import { Department, Agent } from '@/types/models'
-import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 
 interface DepartmentAreaProps {
@@ -18,7 +17,7 @@ interface DepartmentAreaProps {
 export function DepartmentArea({
   department,
   agents,
-  organizationColors,
+  organizationColors: _organizationColors,
   onSelectAgent,
 }: DepartmentAreaProps) {
   return (

@@ -7,7 +7,7 @@ import { Container } from '@/components/Container'
 
 export function ProtectedRoute({
   children,
-  requiredRole,
+  requiredRole: _requiredRole,
 }: {
   children: React.ReactNode
   requiredRole?: 'owner' | 'admin' | 'member' | 'viewer'

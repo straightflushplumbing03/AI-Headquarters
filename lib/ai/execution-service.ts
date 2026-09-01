@@ -110,12 +110,12 @@ export class AIExecutionService {
     const result = await provider.execute(request)
 
     // 7. RECORD COST (regardless of success/failure)
-    if (result.actualCost > 0) {
+    if ((result.actualCost ?? 0) > 0) {
       await this.costController.recordCost(
         request.organizationId,
         request.agentId,
         request.taskId,
-        result.actualCost,
+        result.actualCost ?? 0,
         result.provider || 'unknown',
         result.model || 'unknown',
         result.inputTokens,

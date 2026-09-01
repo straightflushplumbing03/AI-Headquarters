@@ -1,16 +1,13 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import type { DailyBriefing } from '@/types/phase4'
-import { AgentRegistry } from '@/lib/agents/registry'
 
 /**
  * Daily Briefing System
  * Generates automated executive briefings
  */
 export class DailyBriefingSystem {
-  private agentRegistry: AgentRegistry
 
   constructor(private supabase: SupabaseClient) {
-    this.agentRegistry = new AgentRegistry(supabase)
   }
 
   /**
@@ -239,7 +236,7 @@ Expected Focus Areas:
    * Generate CEO recommendation
    */
   private async generateCEORecommendation(
-    organizationId: string,
+    _organizationId: string,
     yesterday: any,
     today: any,
     alerts: any[]
