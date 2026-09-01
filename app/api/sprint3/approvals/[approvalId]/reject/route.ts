@@ -13,10 +13,7 @@ export async function POST(request: NextRequest, { params }: { params: { approva
     const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {
         getAll() {
-          return request.cookies.getSetCookie().map((cookie) => ({
-            name: cookie.split('=')[0],
-            value: decodeURIComponent(cookie.split('=')[1]),
-          }))
+          return request.cookies.getAll()
         },
         setAll() {},
       },

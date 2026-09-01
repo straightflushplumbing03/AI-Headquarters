@@ -62,7 +62,7 @@ export class SystemHealthMonitor {
     };
   }
 
-  private async checkPerformance(organizationId: string) {
+  private async checkPerformance(_organizationId: string) {
     return {
       healthy: true,
       status: 'operational',

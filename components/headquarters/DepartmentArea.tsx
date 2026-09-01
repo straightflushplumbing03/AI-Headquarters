@@ -1,7 +1,6 @@
 'use client'
 
 import { Department, Agent } from '@/types/models'
-import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 
 interface DepartmentAreaProps {
@@ -18,7 +17,7 @@ interface DepartmentAreaProps {
 export function DepartmentArea({
   department,
   agents,
-  organizationColors,
+  organizationColors: _organizationColors,
   onSelectAgent,
 }: DepartmentAreaProps) {
   return (
@@ -90,7 +89,7 @@ export function DepartmentArea({
                           : agent.status === 'waiting'
                           ? '#06b6d4'
                           : '#6b7280',
-                    }},
+                    }}
                   />
                   <span className="text-xs text-slate-400 capitalize">{agent.status}</span>
                 </div>

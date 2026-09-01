@@ -1,4 +1,3 @@
-import { SupabaseClient } from '@supabase/supabase-js'
 
 export interface AIProviderConfig {
   provider: 'openai' | 'anthropic' | 'pending'
@@ -111,4 +110,3 @@ export interface TaskOutcome {
   metrics?: Record<string, number>
   createdAt: string
 }
-"

@@ -6,7 +6,7 @@ export class Phase6Orchestrator {
   async orchestrateDecisionToAction(
     organizationId: string,
     decisionInput: any,
-    agentId: string
+    _agentId: string
   ) {
     try {
       const { data: decision } = await this.supabase

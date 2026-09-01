@@ -13,7 +13,7 @@ export class Phase5Integration {
   private recommendationEngine: RecommendationEngine;
   private healthService: BusinessHealthService;
 
-  constructor(private supabase: SupabaseClient) {
+  constructor(supabase: SupabaseClient) {
     this.leadService = new PredictiveLeadService(supabase);
     this.revenueService = new RevenueForecastService(supabase);
     this.opportunityEngine = new OpportunityEngine(supabase);
@@ -70,7 +70,11 @@ export class Phase5Integration {
       attributionSummary: {
         top_channels: [],
         conversion_paths: [],
-        revenue_by_channel: {},
+        revenue_by_channel: {
+          organic_search: 0, direct: 0, referral: 0, paid_search: 0,
+          paid_social: 0, social_organic: 0, email: 0, gmb: 0,
+          display: 0, video: 0, phone: 0, offline: 0, other: 0,
+        },
       },
       modelAccuracy: {},
       lastUpdated: new Date().toISOString(),

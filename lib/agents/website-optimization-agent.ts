@@ -62,7 +62,7 @@ Identify:
     return await this.executeAudit(userId, userMessage)
   }
 
-  private async executeAudit(userId: string, userMessage: string): Promise<AIExecutionResult> {
+  private async executeAudit(_userId: string, userMessage: string): Promise<AIExecutionResult> {
     const provider = getAIProvider()
     const request: AIExecutionRequest = {
       organizationId: this.organizationId,
@@ -81,6 +81,7 @@ Identify:
         inputTokens: 0,
         outputTokens: 0,
         estimatedCost: 0,
+      actualCost: 0,
         executionTimeMs: 0,
         error: error.message,
       }

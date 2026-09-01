@@ -1,5 +1,4 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Phase5 } from '../../types/phase5';
 
 export class WebsiteRevenueIntelligence {
   constructor(private supabase: SupabaseClient) {}

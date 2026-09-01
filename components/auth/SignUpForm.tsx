@@ -61,7 +61,7 @@ export function SignUpForm() {
           label="Email"
           placeholder="your@email.com"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
           disabled={loading}
           required
         />
@@ -70,7 +70,7 @@ export function SignUpForm() {
           label="Password"
           placeholder="At least 6 characters"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
           disabled={loading}
           required
         />

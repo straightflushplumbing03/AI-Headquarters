@@ -364,7 +364,7 @@ export function OnboardingFlow() {
               label="Company Name"
               placeholder="Acme Corporation"
               value={data.companyName}
-              onChange={(e) => updateData({ companyName: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateData({ companyName: e.target.value })}
               disabled={loading}
               error={error && step === 2 ? error : undefined}
             />
@@ -380,7 +380,7 @@ export function OnboardingFlow() {
               label="Website URL"
               placeholder="example.com or https://example.com"
               value={data.website}
-              onChange={(e) => updateData({ website: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateData({ website: e.target.value })}
               disabled={loading}
               error={error && step === 3 ? error : undefined}
             />
@@ -395,7 +395,7 @@ export function OnboardingFlow() {
             <select
               className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
               value={data.industry}
-              onChange={(e) => updateData({ industry: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateData({ industry: e.target.value })}
               disabled={loading}
             >
               <option value="">Select an industry...</option>
@@ -423,7 +423,7 @@ export function OnboardingFlow() {
               className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors h-32 resize-none"
               placeholder="Tell us about your business, services, and what makes you unique..."
               value={data.description}
-              onChange={(e) => updateData({ description: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateData({ description: e.target.value })}
               disabled={loading}
             />
             {error && step === 5 && <p className="text-red-500 text-sm mt-2">{error}</p>}
@@ -439,7 +439,7 @@ export function OnboardingFlow() {
               <input
                 type="file"
                 accept="image/*"
-                onChange={(e) => {
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                   if (e.target.files?.[0]) {
                     const file = e.target.files[0]
                     if (file.size > 5 * 1024 * 1024) {
@@ -486,7 +486,7 @@ export function OnboardingFlow() {
               className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors h-32 resize-none"
               placeholder="e.g., Increase customer leads, improve website SEO, analyze competitor strategies..."
               value={data.primaryGoal}
-              onChange={(e) => updateData({ primaryGoal: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateData({ primaryGoal: e.target.value })}
               disabled={loading}
             />
             {error && step === 7 && <p className="text-red-500 text-sm mt-2">{error}</p>}

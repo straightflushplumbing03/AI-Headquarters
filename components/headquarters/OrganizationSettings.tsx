@@ -15,7 +15,7 @@ export function OrganizationSettings() {
   const organizationId = params.id as string
   const supabase = createClient()
 
-  const [organization, setOrganization] = useState<Organization | null>(null)
+  const [_organization, setOrganization] = useState<Organization | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -116,7 +116,7 @@ export function OrganizationSettings() {
         <Input
           label="Company Name"
           value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })}
           disabled={saving}
         />
 
@@ -124,14 +124,14 @@ export function OrganizationSettings() {
           label="Website"
           type="url"
           value={formData.website}
-          onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, website: e.target.value })}
           disabled={saving}
         />
 
         <Input
           label="Industry"
           value={formData.industry}
-          onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, industry: e.target.value })}
           disabled={saving}
         />
 
@@ -140,7 +140,7 @@ export function OrganizationSettings() {
           <textarea
             className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors h-24 resize-none"
             value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, description: e.target.value })}
             disabled={saving}
           />
         </div>
@@ -156,7 +156,7 @@ export function OrganizationSettings() {
               <input
                 type="color"
                 value={formData.primary_color}
-                onChange={(e) => setFormData({ ...formData, primary_color: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, primary_color: e.target.value })}
                 disabled={saving}
                 className="w-12 h-12 rounded cursor-pointer"
               />
@@ -170,7 +170,7 @@ export function OrganizationSettings() {
               <input
                 type="color"
                 value={formData.secondary_color}
-                onChange={(e) => setFormData({ ...formData, secondary_color: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, secondary_color: e.target.value })}
                 disabled={saving}
                 className="w-12 h-12 rounded cursor-pointer"
               />
@@ -184,7 +184,7 @@ export function OrganizationSettings() {
               <input
                 type="color"
                 value={formData.accent_color}
-                onChange={(e) => setFormData({ ...formData, accent_color: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, accent_color: e.target.value })}
                 disabled={saving}
                 className="w-12 h-12 rounded cursor-pointer"
               />

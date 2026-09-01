@@ -73,7 +73,7 @@ export default function CreateOrganizationPage() {
           label="Organization Name"
           placeholder="My Company"
           value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })}
           disabled={loading}
           required
         />
@@ -81,7 +81,7 @@ export default function CreateOrganizationPage() {
           label="Organization Slug (optional)"
           placeholder="my-company"
           value={formData.slug}
-          onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, slug: e.target.value })}
           disabled={loading}
         />
 

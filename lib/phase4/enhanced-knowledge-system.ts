@@ -95,12 +95,12 @@ export class EnhancedKnowledgeSystem {
    * Get knowledge summary
    */
   async getKnowledgeSummary(organizationId: string): Promise<any> {
-    const learnings = await this.supabase
+    const { data: learnings } = await this.supabase
       .from('strategic_learnings')
       .select('count')
       .eq('organization_id', organizationId)
 
-    const patterns = await this.supabase
+    const { data: patterns } = await this.supabase
       .from('discovered_patterns')
       .select('count')
       .eq('organization_id', organizationId)

@@ -1,5 +1,4 @@
 import { SupabaseClient } from '@supabase/supabase-js'
-import type { AgentSystemPrompt } from '@/types/ai'
 
 /**
  * AI CEO Agent
@@ -46,7 +45,7 @@ Your responsibilities:
 14. Never expose secrets or sensitive information
 15. Log all decisions and reasoning
 
-Constraints:
+Operational constraints:
 - Only create tasks for employees that exist
 - Always respect autonomy levels (1-5)
 - Budget is sacred - never exceed it
@@ -70,7 +69,7 @@ Always respond with structured output.
    * Build context for AI CEO
    */
   async buildContext(
-    supabase: SupabaseClient,
+    _supabase: SupabaseClient,
     companyInfo: any,
     goals: any[],
     agents: any[],
