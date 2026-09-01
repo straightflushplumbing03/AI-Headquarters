@@ -1,8 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
-import { AgentRegistry } from '@/lib/agents/registry'
-import type { TaskWorkflow, WorkflowExecution } from '@/types/phase3'
-import { WorkflowEngine } from '@/lib/phase3/workflow-engine'
-import { KnowledgeSystem } from '@/lib/phase3/knowledge-system'
+import type { TaskWorkflow } from '@/types/phase3'
 import { PriorityEngine } from '@/lib/phase3/priority-engine'
 
 /**
@@ -10,14 +7,8 @@ import { PriorityEngine } from '@/lib/phase3/priority-engine'
  * Coordinates multi-agent workflows and strategic decision-making
  */
 export class CEOOrchestrator {
-  private agentRegistry: AgentRegistry
-  private workflowEngine: WorkflowEngine
-  private knowledgeSystem: KnowledgeSystem
 
   constructor(private supabase: SupabaseClient) {
-    this.agentRegistry = new AgentRegistry(supabase)
-    this.workflowEngine = new WorkflowEngine(supabase)
-    this.knowledgeSystem = new KnowledgeSystem(supabase)
   }
 
   /**
@@ -94,7 +85,7 @@ Critical Findings: ${intelligence?.filter(i => i.importance === 'critical').leng
 AI Execution: ${logs?.length || 0} executions
 Total Cost: $${logs?.reduce((sum, log) => sum + (log.estimated_cost || 0), 0).toFixed(2)}
 
-Status: Organization is performing ${outcomes?.filter(o => o.success).length / (outcomes?.length || 1) > 0.7 ? 'well' : 'needs attention'}
+Status: Organization is performing ${(outcomes?.filter(o => o.success) ?? []).length / (outcomes?.length || 1) > 0.7 ? 'well' : 'needs attention'}
     `
 
     return analysis.trim()
@@ -103,7 +94,7 @@ Status: Organization is performing ${outcomes?.filter(o => o.success).length / (
   /**
    * Identify opportunities from research
    */
-  private async identifyOpportunities(organizationId: string, analysis: string): Promise<any[]> {
+  private async identifyOpportunities(organizationId: string, _analysis: string): Promise<any[]> {
     const { data } = await this.supabase
       .from('opportunities')
       .select('*')
@@ -180,8 +171,8 @@ Status: Organization is performing ${outcomes?.filter(o => o.success).length / (
    * Delegate tasks to agents
    */
   private async delegateTasks(
-    organizationId: string,
-    userId: string,
+    _organizationId: string,
+    _userId: string,
     workflows: TaskWorkflow[]
   ): Promise<number> {
     let delegated = 0

@@ -4,10 +4,10 @@ export class Phase7LearningOrchestrator {
   constructor(private supabase: SupabaseClient) {}
 
   async processOutcome(
-    organizationId: string,
+    _organizationId: string,
     decisionId: string,
     actualOutcome: any,
-    agentId: string
+    _agentId: string
   ) {
     try {
       await this.supabase

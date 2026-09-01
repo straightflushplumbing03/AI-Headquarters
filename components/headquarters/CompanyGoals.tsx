@@ -213,9 +213,9 @@ export function CompanyGoals() {
                 </span>
               </div>
 
-              {goal.target_date && (
+              {goal.targetDate && (
                 <p className="text-xs text-slate-400">
-                  Target: {new Date(goal.target_date).toLocaleDateString()}
+                  Target: {new Date(goal.targetDate).toLocaleDateString()}
                 </p>
               )}
 

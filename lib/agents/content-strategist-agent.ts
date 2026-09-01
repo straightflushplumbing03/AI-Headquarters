@@ -79,7 +79,7 @@ Provide a complete content brief in the specified format. Make it actionable.`
     return await this.executeStrategy(userId, userMessage)
   }
 
-  private async executeStrategy(userId: string, userMessage: string): Promise<AIExecutionResult> {
+  private async executeStrategy(_userId: string, userMessage: string): Promise<AIExecutionResult> {
     const provider = getAIProvider()
     const request: AIExecutionRequest = {
       organizationId: this.organizationId,

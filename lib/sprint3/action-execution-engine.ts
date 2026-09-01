@@ -388,7 +388,7 @@ export class ActionExecutionEngine {
       generate_report: (a) => ({ report: `Mock report for: ${a.title}`, generatedAt: new Date().toISOString() }),
       create_task:     (a) => ({ taskCreated: true, title: a.title }),
       send_alert:      (a) => ({ alertSent: true, description: a.description }),
-      update_priority: (a) => ({ priorityUpdated: true }),
+      update_priority: (_a) => ({ priorityUpdated: true }),
       custom:          (a) => ({ handled: true, actionType: a.action_type }),
     }
 

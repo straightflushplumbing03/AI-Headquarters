@@ -13,7 +13,7 @@ export class Phase5Integration {
   private recommendationEngine: RecommendationEngine;
   private healthService: BusinessHealthService;
 
-  constructor(private supabase: SupabaseClient) {
+  constructor(supabase: SupabaseClient) {
     this.leadService = new PredictiveLeadService(supabase);
     this.revenueService = new RevenueForecastService(supabase);
     this.opportunityEngine = new OpportunityEngine(supabase);

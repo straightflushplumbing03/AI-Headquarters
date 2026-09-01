@@ -526,7 +526,7 @@ export namespace Phase5 {
     attributionSummary: {
       top_channels: { channel: Channel; revenue: number }[];
       conversion_paths: string[][];
-      revenue_by_channel: Record<Channel, number>;
+      revenue_by_channel: Partial<Record<Channel, number>>;
     };
 
     // Model performance

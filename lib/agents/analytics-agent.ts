@@ -75,7 +75,7 @@ Provide insights and recommendations.`
     return await this.executeAnalysis(userId, userMessage)
   }
 
-  private async executeAnalysis(userId: string, userMessage: string): Promise<AIExecutionResult> {
+  private async executeAnalysis(_userId: string, userMessage: string): Promise<AIExecutionResult> {
     const provider = getAIProvider()
     const request: AIExecutionRequest = {
       organizationId: this.organizationId,

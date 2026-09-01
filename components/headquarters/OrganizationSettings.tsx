@@ -15,7 +15,7 @@ export function OrganizationSettings() {
   const organizationId = params.id as string
   const supabase = createClient()
 
-  const [organization, setOrganization] = useState<Organization | null>(null)
+  const [_organization, setOrganization] = useState<Organization | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)

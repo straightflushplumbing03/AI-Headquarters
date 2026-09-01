@@ -6,7 +6,7 @@
  * RLS runtime: CODE VERIFIED — RUNTIME RLS TEST NOT EXECUTED
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { ActionExecutionEngine } from '@/lib/sprint3/action-execution-engine'
 import { ApprovalManager } from '@/lib/sprint3/approval-manager'
 import { OperatingModeManager } from '@/lib/sprint3/operating-modes'
@@ -61,7 +61,7 @@ function makeSupabase(overrides: {
     agent = { active: true },
     actionUpdate = { data: { id: 'action-1' }, error: null },
     auditInsert = { error: null },
-    approvalUpdate = { error: null },
+    approvalUpdate: _approvalUpdate = { error: null },
     approvalForManager = { id: 'appr-1', approval_status: 'pending', organization_id: 'org-1', action_id: null },
   } = overrides
 
@@ -73,7 +73,7 @@ function makeSupabase(overrides: {
       neq: () => q,
       in: () => q,
       single: () => Promise.resolve({ data: q._data, error: q._data ? null : { message: 'not found' } }),
-      update: (vals: any) => {
+      update: (_vals: any) => {
         const u: any = {
           eq: () => u,
           in: () => u,
@@ -411,7 +411,7 @@ describe('ApprovalManager', () => {
   } = {}) {
     const { member = { role: 'admin' }, approval, updateError = null } = overrides
     return {
-      from: (table: string) => ({
+      from: (_table: string) => ({
         select: () => ({
           eq: () => ({
             eq: () => ({

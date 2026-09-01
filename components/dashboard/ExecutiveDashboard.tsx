@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/browser'
 import { Container } from '@/components/Container'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
-import type { Organization, Agent, Department, Task } from '@/types/models'
+import type { Organization, Agent, Task } from '@/types/models'
 
 export function ExecutiveDashboard() {
   const params = useParams()
@@ -227,7 +227,7 @@ export function ExecutiveDashboard() {
                           : agent.status === 'working'
                           ? '#f59e0b'
                           : '#6b7280',
-                    }},
+                    }}
                   />
                   <span className="text-xs text-slate-500 capitalize">{agent.status}</span>
                 </div>

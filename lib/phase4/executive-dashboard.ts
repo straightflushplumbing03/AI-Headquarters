@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
-import type { BusinessKPI, DailyBriefing, ExecutiveDecision } from '@/types/phase4'
+import type { BusinessKPI, ExecutiveDecision } from '@/types/phase4'
 
 /**
  * Executive Dashboard Service
