@@ -2,12 +2,12 @@ import type { Metadata } from 'next'
 import { Inter, Fira_Code } from 'next/font/google'
 import '@/styles/globals.css'
 
-const geist = Inter({
+const inter = Inter({
   variable: '--font-geist-sans',
   subsets: ['latin'],
 })
 
-const geistMono = Fira_Code({
+const firaCode = Fira_Code({
   variable: '--font-geist-mono',
   subsets: ['latin'],
 })
@@ -29,7 +29,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${geist.variable} ${geistMono.variable} font-sans`}>
+      <body className={`${inter.variable} ${firaCode.variable} font-sans`}>
         {children}
       </body>
     </html>
