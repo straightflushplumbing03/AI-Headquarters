@@ -19,7 +19,6 @@ export function HeadquartersInterior({
   agents,
   onExit,
 }: HeadquartersInteriorProps) {
-  const [_selectedDepartment, _setSelectedDepartment] = useState<string | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
 
   const getDepartmentAgents = (deptId: string | null) => {
