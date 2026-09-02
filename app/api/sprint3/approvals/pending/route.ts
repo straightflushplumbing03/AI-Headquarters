@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@/lib/supabase/server'
 import { ApprovalManager } from '@/lib/sprint3/approval-manager'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,17 +11,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'organizationId required' }, { status: 400 })
     }
 
-    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-      cookies: {
-        getAll() {
-          return request.cookies.getSetCookie().map((cookie) => ({
-            name: cookie.split('=')[0],
-            value: decodeURIComponent(cookie.split('=')[1]),
-          }))
-        },
-        setAll() {},
-      },
-    })
+    const supabase = await createClient()
 
     const { data: user } = await supabase.auth.getUser()
     if (!user.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

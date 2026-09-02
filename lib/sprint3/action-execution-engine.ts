@@ -14,7 +14,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { AICostController } from '@/lib/ai/cost-controller'
 import type { UserRole } from '@/lib/auth/permissions'
-import { hasPermission } from '@/lib/auth/permissions'
 
 export type OperatingMode = 'shadow' | 'approval' | 'autonomous'
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
@@ -191,15 +190,94 @@ export class ActionExecutionEngine {
       passedChecks.push('no_budget_cost')
     }
 
-    // 8. Idempotency check
-    const idempotencyCheck = await this.checkIdempotency(request.idempotencyKey, request.organizationId)
-    if (!idempotencyCheck.allowed) {
+    // 8. Atomic idempotency claim - prevent duplicate execution
+    //
+    // Instead of a check-then-execute race, we atomically claim the key first.
+    // A claim is an insert into autonomous_actions with execution_status='queued'
+    // keyed on idempotency_key. If the insert wins, we own the key and can execute.
+    // If it fails (duplicate key), another request owns it and we block.
+    const claim = await this.claimIdempotencyKey(request)
+    if (!claim.allowed) {
       failedChecks.push('duplicate_execution')
-      return { allowed: false, blockReason: idempotencyCheck.reason, passedChecks, failedChecks }
+      return { allowed: false, blockReason: claim.reason, passedChecks, failedChecks }
     }
     passedChecks.push('idempotency_valid')
 
     return { allowed: true, passedChecks, failedChecks }
+  }
+
+  /**
+   * 6. Atomic idempotency claim - prevent duplicate execution
+   *
+   * Instead of a check-then-execute race, we atomically claim the key first.
+   * A claim is an insert into autonomous_actions with execution_status='queued'
+   * keyed on idempotency_key. If the insert wins, we own the key and can execute.
+   * If it fails (duplicate key), another request owns it and we block.
+   */
+  private async claimIdempotencyKey(
+    request: ActionExecutionRequest
+  ): Promise<{ allowed: boolean; reason?: string }> {
+    if (!request.idempotencyKey) {
+      return { allowed: false, reason: 'Idempotency key required' }
+    }
+
+    // Check if action with this idempotency key already executed successfully
+    const { data: existing } = await this.supabase
+      .from('autonomous_actions')
+      .select('id, execution_status')
+      .eq('idempotency_key', request.idempotencyKey)
+      .eq('organization_id', request.organizationId)
+      .single()
+
+    if (existing) {
+      if (existing.execution_status === 'completed') {
+        return { allowed: false, reason: 'Action with this ID already executed successfully' }
+      }
+      // Allow retry: re-claim the failed row for this execution attempt.
+      if (existing.execution_status === 'failed') {
+        await this.supabase
+          .from('autonomous_actions')
+          .update({
+            execution_status: 'queued',
+            completed_at: null,
+            last_error: null,
+          })
+          .eq('id', existing.id)
+          .eq('organization_id', request.organizationId)
+        return { allowed: true }
+      }
+      // Executing or queued - don't allow concurrent execution
+      return { allowed: false, reason: 'Action already in progress' }
+    }
+
+    // Atomically claim the idempotency key: insert a queued execution record
+    // keyed on (idempotency_key, organization_id). If a concurrent request
+    // claims it first, this insert fails on the unique constraint and we block.
+    // We insert with the request's actionId so the later execution-status update
+    // (by id) lands on the claimed row.
+    const { error: claimError } = await this.supabase
+      .from('autonomous_actions')
+      .insert({
+        id: request.actionId,
+        organization_id: request.organizationId,
+        idempotency_key: request.idempotencyKey,
+        execution_status: 'queued',
+        action_type: request.actionType,
+        title: request.title,
+        created_at: new Date().toISOString(),
+      })
+
+    if (claimError) {
+      // Unique constraint violation = another request claimed the key first
+      if (claimError.code === '23505') {
+        return { allowed: false, reason: 'Action already in progress (claimed by concurrent request)' }
+      }
+      // Other insert errors are non-claim errors - don't block on them here;
+      // they will surface during execution.
+      return { allowed: true }
+    }
+
+    return { allowed: true }
   }
 
   /**
@@ -298,40 +376,6 @@ export class ActionExecutionEngine {
 
     if (orgLimits?.paused) {
       return { allowed: false, reason: orgLimits.pause_reason || 'Organization is paused' }
-    }
-
-    return { allowed: true }
-  }
-
-  /**
-   * 6. Check idempotency - prevent duplicate execution
-   */
-  private async checkIdempotency(
-    idempotencyKey: string,
-    organizationId: string
-  ): Promise<{ allowed: boolean; reason?: string }> {
-    if (!idempotencyKey) {
-      return { allowed: false, reason: 'Idempotency key required' }
-    }
-
-    // Check if action with this idempotency key already executed successfully
-    const { data: existing } = await this.supabase
-      .from('autonomous_actions')
-      .select('id, execution_status')
-      .eq('idempotency_key', idempotencyKey)
-      .eq('organization_id', organizationId)
-      .single()
-
-    if (existing) {
-      if (existing.execution_status === 'completed') {
-        return { allowed: false, reason: 'Action with this ID already executed successfully' }
-      }
-      // Allow retry if previous attempt failed
-      if (existing.execution_status === 'failed') {
-        return { allowed: true }
-      }
-      // Executing or queued - don't allow concurrent execution
-      return { allowed: false, reason: 'Action already in progress' }
     }
 
     return { allowed: true }

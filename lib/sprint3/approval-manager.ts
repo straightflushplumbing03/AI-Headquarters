@@ -156,6 +156,54 @@ export class ApprovalManager {
     return data || []
   }
 
+  async cancelAction(
+    approvalId: string,
+    userId: string,
+    organizationId: string,
+    reason: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const canApprove = await this.canUserApprove(userId, organizationId)
+    if (!canApprove.can) return { success: false, error: canApprove.reason }
+
+    const { data: approval, error: loadError } = await this.supabase
+      .from('approval_requests')
+      .select('id, approval_status, organization_id')
+      .eq('id', approvalId)
+      .eq('organization_id', organizationId)
+      .single()
+
+    if (loadError || !approval) return { success: false, error: 'Approval not found' }
+    if (approval.approval_status !== 'pending') return { success: false, error: `Cannot cancel: status is ${approval.approval_status}` }
+
+    const { error: updateError } = await this.supabase
+      .from('approval_requests')
+      .update({
+        approval_status: 'cancelled',
+        approved_by: userId,
+        approval_notes: reason,
+        approved_at: new Date().toISOString(),
+      })
+      .eq('id', approvalId)
+      .eq('organization_id', organizationId)
+
+    if (updateError) return { success: false, error: updateError.message }
+
+    await this.logApprovalAction(userId, organizationId, approvalId, 'cancelled', reason)
+    return { success: true }
+  }
+
+  async getActionStatus(actionId: string, organizationId: string): Promise<any | null> {
+    const { data, error } = await this.supabase
+      .from('autonomous_actions')
+      .select('*')
+      .eq('id', actionId)
+      .eq('organization_id', organizationId)
+      .single()
+
+    if (error) return null
+    return data
+  }
+
   async getApprovalDetails(approvalId: string, organizationId: string): Promise<any | null> {
     const { data, error } = await this.supabase
       .from('approval_requests')
@@ -172,7 +220,7 @@ export class ApprovalManager {
     userId: string,
     organizationId: string,
     approvalId: string,
-    action: 'approved' | 'rejected',
+    action: 'approved' | 'rejected' | 'cancelled',
     details?: string
   ): Promise<void> {
     try {
