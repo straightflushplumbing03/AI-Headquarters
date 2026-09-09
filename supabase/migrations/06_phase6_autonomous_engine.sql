@@ -360,8 +360,8 @@ CREATE INDEX IF NOT EXISTS idx_autonomous_actions_decision ON autonomous_actions
 CREATE INDEX IF NOT EXISTS idx_autonomous_actions_type ON autonomous_actions(action_type);
 
 CREATE INDEX IF NOT EXISTS idx_approval_requests_org ON approval_requests(organization_id);
-CREATE INDEX IF NOT EXISTS idx_approval_requests_status ON approval_requests(approval_status);
-CREATE INDEX IF NOT EXISTS idx_approval_requests_decision ON approval_requests(decision_id);
+CREATE INDEX IF NOT EXISTS idx_approval_requests_status ON approval_requests(status);
+CREATE INDEX IF NOT EXISTS idx_approval_requests_task ON approval_requests(task_id);
 
 CREATE INDEX IF NOT EXISTS idx_action_queue_org ON action_queue(organization_id);
 CREATE INDEX IF NOT EXISTS idx_action_queue_status ON action_queue(queue_status);

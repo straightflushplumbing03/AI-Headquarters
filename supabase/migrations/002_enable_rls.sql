@@ -37,26 +37,36 @@ create policy "Authenticated users can create organizations"
   with check (auth.role() = 'authenticated');
 
 -- Organization Members RLS Policies
-create policy "Users can view their organization members"
-  on public.organization_members for select
-  using (
-    exists (
-      select 1 from public.organization_members om2
-      where om2.organization_id = organization_members.organization_id
-      and om2.user_id = auth.uid()
-    )
+
+-- Recursion-free owner check: SECURITY DEFINER bypasses RLS, so policies
+-- on organization_members can use it without infinite recursion.(Legacy
+-- bugfix: the old self-referential EXISTS policies caused `infinite recursion`
+-- under real RLS (authenticated/service roles forever.) The direct user_id =
+-- auth.uid() select policy keeps member listing recursion-free;owner
+-- management delegates to this helper instead of re-querying the table.
+
+create or replace function public.is_org_owner(p_organization_id uuid)
+returns boolean
+language sql stable security definer
+set search_path = public, extensions
+as $fn$
+  select exists (
+    select 1 from public.organization_members om
+    where om.organization_id = p_organization_id
+      and om.user_id = auth.uid()
+      and om.role = 'owner'
   );
+$fn$;
+grant execute on function public.is_org_owner(uuid) to authenticated, service_role;
+
+create policy "Users can view their organization members"
+ on public.organization_members for select
+ using (user_id = auth.uid());
 
 create policy "Org owners can manage members"
-  on public.organization_members for all
-  using (
-    exists (
-      select 1 from public.organization_members om2
-      where om2.organization_id = organization_members.organization_id
-      and om2.user_id = auth.uid()
-      and om2.role = 'owner'
-    )
-  );
+ on public.organization_members for all
+ using (public.is_org_owner(organization_id))
+ with check (public.is_org_owner(organization_id));
 
 -- Departments RLS Policies
 create policy "Users can view departments of their organizations"
