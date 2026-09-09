@@ -93,6 +93,7 @@ CREATE INDEX IF NOT EXISTS idx_discovered_patterns_temporal ON discovered_patter
 -- Strategic Learnings RLS
 ALTER TABLE strategic_learnings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS strategic_learnings_org_isolation ON strategic_learnings;
 CREATE POLICY strategic_learnings_org_isolation ON strategic_learnings
   FOR ALL
   USING (
@@ -104,6 +105,7 @@ CREATE POLICY strategic_learnings_org_isolation ON strategic_learnings
 -- Discovered Patterns RLS
 ALTER TABLE discovered_patterns ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS discovered_patterns_org_isolation ON discovered_patterns;
 CREATE POLICY discovered_patterns_org_isolation ON discovered_patterns
   FOR ALL
   USING (

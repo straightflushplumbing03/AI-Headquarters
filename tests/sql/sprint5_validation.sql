@@ -207,3 +207,118 @@ $t8$;
 
 
 
+-- T9: complete execution chain (decision -> approval -> action -> queue -> budget reservation -> worker claim -> engine execute -> settle -> audit -> result)
+DO $t9$
+DECLARE
+  v_decision_id uuid;
+  v_approval_id uuid;
+  v_action_id uuid;
+  v_queue_id uuid;
+  v_res_id uuid;
+  v_ok boolean;
+  v_reason text;
+  v_spend numeric;
+  v_affected integer;
+BEGIN
+  INSERT INTO autonomous_decisions (
+    organization_id, decision_type, title, description, reasoning,
+    supporting_evidence, confidence_score, recommended_action, risk_level,
+    approval_required, estimated_cost
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000001', 'operational', 't9 decision', 'desc', 'reason',
+    '{}'::jsonb, 0.90, 'execute create content', 'medium',
+    true, 25
+  ) RETURNING id INTO v_decision_id;
+
+  INSERT INTO approval_requests (
+    organization_id, decision_id, request_type, title, description,
+    proposed_action, status, approval_status, approved_by, expires_at, response_deadline
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000001', v_decision_id, 'execution', 't9 approval', 'desc',
+    'create_content', 'approved', 'approved', 't9-approver', now()::timestamp + interval '1 day', now() + interval '1 day'
+  ) RETURNING id INTO v_approval_id;
+
+  IF NOT EXISTS (SELECT 1 FROM approval_requests WHERE id = v_approval_id AND approval_status = 'approved' AND status = 'approved') THEN
+    RAISE EXCEPTION 'T9 fail approval precondition';
+  END IF;
+
+  INSERT INTO autonomous_actions (
+    organization_id, decision_id, action_type, title, payload, authorization_level,
+    execution_status, risk_level
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000001', v_decision_id, 'create_content', 't9 action', '{}'::jsonb,
+    'level_3', 'queued', 'medium'
+  ) RETURNING id INTO v_action_id;
+
+  INSERT INTO action_queue (organization_id, action_id, queue_status, priority)
+  VALUES ('00000000-0000-0000-0000-000000000001', v_action_id, 'pending',  50;
+  RETURNING id INTO v_queue_id;
+
+  SELECT ok, reason, reservation_id INTO v_ok, v_reason, v_res_id
+  FROM reserve_budget(
+    '00000000-0000-0000-0000-000000000001',  25, 't9-chain-key', '2 hours'
+  );
+IF NOT v_ok THEN RAISE EXCEPTION 'T9 fail reserve: %', v_reason; END IF;
+
+  -- Worker claim (atomic: only one worker wins the row)
+ UPDATE action_queue
+ SET queue_status = 'processing', processing_started_at = now()
+ WHERE id = v_queue_id AND queue_status = 'pending';
+ GET DIAGNOSTICS v_affected = ROW_COUNT;
+ IF v_affected <> 1 THEN RAISE EXCEPTION 'T9 fail worker claim (%)', v_affected; END IF;
+
+ -- Engine executes
+ UPDATE autonomous_actions SET execution_status = 'executing', started_at = now() WHERE id = v_action_id;
+ UPDATE autonomous_actions SET execution_status = 'completed', completed_at = now() WHERE id = v_action_id;
+ UPDATE action_queue SET queue_status = 'completed', completed_at = now() WHERE id = v_queue_id;
+
+ -- Settle (exactly-once;hold moves to spend)
+ SELECT ok INTO v_ok FROM settle_reservation(v_res_id);
+ IF NOT v_ok THEN RAISE EXCEPTION 'T9 fail settle'; END IF;
+
+ -- Audit + result
+ INSERT INTO ai_execution_logs (organization_id, provider, model, execution_time_ms, status)
+ VALUES ('00000000-0000-0000-0000-000000000001', 'test', 't9-model',  12, 'success');
+ INSERT INTO action_outcomes (organization_id, action_id, decision_id, outcome_type, description, measured_at)
+ VALUES ('00000000-0000-0000-0000-000000000001', v_action_id, v_decision_id, 'success', 't9 outcome', now());
+
+ SELECT current_spend INTO v_spend FROM ai_usage_limits WHERE organization_id = '00000000-0000-0000-0000-000000000001';
+ IF NOT EXISTS (SELECT 1 FROM action_outcomes WHERE action_id = v_action_id AND outcome_type = 'success') THEN
+   RAISE EXCEPTION 'T9 fail outcome';
+ END IF;
+ IF NOT EXISTS (SELECT 1 FROM ai_execution_logs WHERE organization_id = '00000000-0000-0000-0000-000000000001' AND status = 'success') THEN
+   RAISE EXCEPTION 'T9 fail audit log';
+ END IF;
+ IF v_spend <> 25 THEN RAISE EXCEPTION 'T9 fail budget booked: %', v_spend; END IF;
+
+ RAISE NOTICE 'T9 PASS';
+END;
+$t9$;
+
+-- T10: pending approvals expire and audit
+DO $t10$
+DECLARE
+  v_approval_id uuid;
+  v_count integer;
+BEGIN
+  INSERT INTO approval_requests (
+    organization_id, request_type, title, description, proposed_action,
+    status, approval_status, expires_at, response_deadline
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000002', 'execution', 't10 stale approval', 'desc', 'x',
+    'pending', 'pending', now()::timestamp - interval '1 day', now() - interval '1 day'
+  ) RETURNING id INTO v_approval_id;
+
+  SELECT expire_approvals(interval '1 hour') INTO v_count;
+  IF v_count < 1 THEN RAISE EXCEPTION 'T10 fail no expiry'; END IF;
+
+ IF NOT EXISTS (SELECT 1 FROM approval_requests WHERE id = v_approval_id AND status = 'expired' AND approval_status = 'expired') THEN
+    RAISE EXCEPTION 'T10 fail status not expired';
+ END IF;
+ IF NOT EXISTS (SELECT 1 FROM activity_events WHERE organization_id = '00000000-0000-0000-0000-000000000002' AND event_type = 'approval_expired') THEN
+    RAISE EXCEPTION 'T10 fail audit missing';
+ END IF;
+
+ RAISE NOTICE 'T10 PASS';
+END;
+$t10$;

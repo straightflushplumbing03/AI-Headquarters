@@ -526,10 +526,64 @@ BEGIN
                   WHERE conname = 'approval_requests_approval_status_check'
                     AND conrelid = 'public.approval_requests'::regclass) THEN
     ALTER TABLE public.approval_requests ADD CONSTRAINT approval_requests_approval_status_check
-      CHECK (approval_status IN ('pending', 'approved', 'rejected', 'modified', 'deferred'));
+      CHECK (approval_status IN ('pending', 'approved', 'rejected', 'expired', 'modified', 'deferred'));
   END IF;
 END;
 $guard$;
+-- =====================================================================
+-- SECTION 11 - expire_approvals(p_max_age): flip stale pending approvals to
+-- 'expired' (both legacy status and phase-6 approval_status),and audit
+-- each affected org via activity_events.
+-- =====================================================================
+CREATE OR REPLACE FUNCTION public.expire_approvals(
+  p_max_age interval DEFAULT '24 hours'::interval
+) RETURNS integer
+LANGUAGE plpgsql
+VOLATILE
+SECURITY INVOKER
+SET search_path = public, extensions
+AS $fn$
+DECLARE
+  v_count integer := 0;
+  v_org uuid;
+  v_rowcount integer;
+BEGIN
+  IF p_max_age IS NULL OR p_max_age < INTERVAL '0' THEN
+    RAISE EXCEPTION 'p_max_age must be a non-negative interval';
+  END IF;
+
+  FOR v_org IN
+    SELECT DISTINCT organization_id
+    FROM approval_requests
+    WHERE status = 'pending'
+      AND approval_status IS DISTINCT FROM 'expired'
+      AND (
+        (response_deadline IS NOT NULL AND response_deadline < now() - p_max_age)
+        OR (response_deadline IS NULL AND expires_at < now()::timestamp - p_max_age)
+      )
+  LOOP
+    UPDATE approval_requests
+      SET status = 'expired', approval_status = 'expired', responded_at = now()::timestamp,
+          approval_notes = COALESCE(approval_notes, '') || '; expired by system at ' || now()::text
+      WHERE organization_id = v_org
+        AND status = 'pending'
+        AND approval_status IS DISTINCT FROM 'expired'
+        AND (
+          (response_deadline IS NOT NULL AND response_deadline < now() - p_max_age)
+          OR (response_deadline IS NULL AND expires_at < now()::timestamp - p_max_age)
+        );
+        GET DIAGNOSTICS v_rowcount = ROW_COUNT;
+    v_count := v_count + v_rowcount;
+
+    INSERT INTO activity_events (organization_id, event_type)
+      VALUES (v_org, 'approval_expired')
+      ON CONFLICT DO NOTHING;
+  END LOOP;
+
+  RETURN v_count;
+END;
+$fn$;
 -- Grants required by RLS policies and invoker functions (real gaps fixed):
 GRANT SELECT ON organization_members TO authenticated, service_role;
 GRANT SELECT, UPDATE ON ai_usage_limits TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.expire_approvals(interval) TO authenticated, service_role;

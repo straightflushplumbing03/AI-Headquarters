@@ -408,6 +408,9 @@ CREATE INDEX IF NOT EXISTS idx_forecast_outcomes_org ON forecast_outcomes(organi
 CREATE INDEX IF NOT EXISTS idx_forecast_outcomes_prediction ON forecast_outcomes(prediction_id);
 CREATE INDEX IF NOT EXISTS idx_forecast_outcomes_date ON forecast_outcomes(measured_at DESC);
 
+ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS opportunity_score numeric;
+ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS source_system text;
+ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS owner_agent_id uuid;
 CREATE INDEX IF NOT EXISTS idx_opportunities_org ON opportunities(organization_id);
 CREATE INDEX IF NOT EXISTS idx_opportunities_score ON opportunities(opportunity_score DESC);
 CREATE INDEX IF NOT EXISTS idx_opportunities_status ON opportunities(status);
@@ -443,6 +446,7 @@ CREATE INDEX IF NOT EXISTS idx_prediction_models_name_version ON prediction_mode
 
 -- ROW LEVEL SECURITY
 ALTER TABLE predictions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS predictions_org_isolation ON predictions;
 CREATE POLICY predictions_org_isolation ON predictions
   FOR ALL USING (
     organization_id IN (
@@ -451,6 +455,7 @@ CREATE POLICY predictions_org_isolation ON predictions
   );
 
 ALTER TABLE forecast_outcomes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS forecast_outcomes_org_isolation ON forecast_outcomes;
 CREATE POLICY forecast_outcomes_org_isolation ON forecast_outcomes
   FOR ALL USING (
     organization_id IN (
@@ -459,6 +464,7 @@ CREATE POLICY forecast_outcomes_org_isolation ON forecast_outcomes
   );
 
 ALTER TABLE opportunities ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS opportunities_org_isolation ON opportunities;
 CREATE POLICY opportunities_org_isolation ON opportunities
   FOR ALL USING (
     organization_id IN (
@@ -467,6 +473,7 @@ CREATE POLICY opportunities_org_isolation ON opportunities
   );
 
 ALTER TABLE recommendations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS recommendations_org_isolation ON recommendations;
 CREATE POLICY recommendations_org_isolation ON recommendations
   FOR ALL USING (
     organization_id IN (
@@ -475,6 +482,7 @@ CREATE POLICY recommendations_org_isolation ON recommendations
   );
 
 ALTER TABLE attribution_events ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS attribution_events_org_isolation ON attribution_events;
 CREATE POLICY attribution_events_org_isolation ON attribution_events
   FOR ALL USING (
     organization_id IN (
@@ -483,6 +491,7 @@ CREATE POLICY attribution_events_org_isolation ON attribution_events
   );
 
 ALTER TABLE business_health_snapshots ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS business_health_snapshots_org_isolation ON business_health_snapshots;
 CREATE POLICY business_health_snapshots_org_isolation ON business_health_snapshots
   FOR ALL USING (
     organization_id IN (
@@ -491,6 +500,7 @@ CREATE POLICY business_health_snapshots_org_isolation ON business_health_snapsho
   );
 
 ALTER TABLE predictive_alerts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS predictive_alerts_org_isolation ON predictive_alerts;
 CREATE POLICY predictive_alerts_org_isolation ON predictive_alerts
   FOR ALL USING (
     organization_id IN (
@@ -499,6 +509,7 @@ CREATE POLICY predictive_alerts_org_isolation ON predictive_alerts
   );
 
 ALTER TABLE prediction_models ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS prediction_models_org_isolation ON prediction_models;
 CREATE POLICY prediction_models_org_isolation ON prediction_models
   FOR ALL USING (
     organization_id IN (

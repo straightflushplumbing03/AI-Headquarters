@@ -15,6 +15,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_org ON audit_logs(organization_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
 
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS audit_logs_org_isolation ON audit_logs;
 CREATE POLICY audit_logs_org_isolation ON audit_logs
   FOR ALL USING (
     organization_id IN (

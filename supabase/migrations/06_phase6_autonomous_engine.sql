@@ -384,6 +384,7 @@ CREATE INDEX IF NOT EXISTS idx_workflow_executions_status ON autonomous_workflow
 
 -- ROW LEVEL SECURITY
 ALTER TABLE autonomous_decisions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS autonomous_decisions_org_isolation ON autonomous_decisions;
 CREATE POLICY autonomous_decisions_org_isolation ON autonomous_decisions
   FOR ALL USING (
     organization_id IN (
@@ -392,6 +393,7 @@ CREATE POLICY autonomous_decisions_org_isolation ON autonomous_decisions
   );
 
 ALTER TABLE autonomous_actions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS autonomous_actions_org_isolation ON autonomous_actions;
 CREATE POLICY autonomous_actions_org_isolation ON autonomous_actions
   FOR ALL USING (
     organization_id IN (
@@ -400,6 +402,7 @@ CREATE POLICY autonomous_actions_org_isolation ON autonomous_actions
   );
 
 ALTER TABLE approval_requests ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS approval_requests_org_isolation ON approval_requests;
 CREATE POLICY approval_requests_org_isolation ON approval_requests
   FOR ALL USING (
     organization_id IN (
@@ -408,6 +411,7 @@ CREATE POLICY approval_requests_org_isolation ON approval_requests
   );
 
 ALTER TABLE action_queue ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS action_queue_org_isolation ON action_queue;
 CREATE POLICY action_queue_org_isolation ON action_queue
   FOR ALL USING (
     organization_id IN (
@@ -416,6 +420,7 @@ CREATE POLICY action_queue_org_isolation ON action_queue
   );
 
 ALTER TABLE action_outcomes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS action_outcomes_org_isolation ON action_outcomes;
 CREATE POLICY action_outcomes_org_isolation ON action_outcomes
   FOR ALL USING (
     organization_id IN (
@@ -424,6 +429,7 @@ CREATE POLICY action_outcomes_org_isolation ON action_outcomes
   );
 
 ALTER TABLE decision_rules ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS decision_rules_org_isolation ON decision_rules;
 CREATE POLICY decision_rules_org_isolation ON decision_rules
   FOR ALL USING (
     organization_id IN (
@@ -432,6 +438,7 @@ CREATE POLICY decision_rules_org_isolation ON decision_rules
   );
 
 ALTER TABLE autonomous_workflows ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS autonomous_workflows_org_isolation ON autonomous_workflows;
 CREATE POLICY autonomous_workflows_org_isolation ON autonomous_workflows
   FOR ALL USING (
     organization_id IN (
@@ -440,6 +447,7 @@ CREATE POLICY autonomous_workflows_org_isolation ON autonomous_workflows
   );
 
 ALTER TABLE autonomous_workflow_executions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS autonomous_workflow_executions_org_isolation ON autonomous_workflow_executions;
 CREATE POLICY autonomous_workflow_executions_org_isolation ON autonomous_workflow_executions
   FOR ALL USING (
     organization_id IN (
