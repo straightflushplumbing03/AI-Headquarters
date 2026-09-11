@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS ai_provider_config (
   updated_at TIMESTAMP DEFAULT now()
 );
 
-CREATE INDEX idx_ai_provider_org_id ON ai_provider_config(organization_id);
+CREATE INDEX IF NOT EXISTS idx_ai_provider_org_id ON ai_provider_config(organization_id);
 
 -- AI Execution Logs (audit trail)
 CREATE TABLE IF NOT EXISTS ai_execution_logs (
@@ -36,10 +36,10 @@ CREATE TABLE IF NOT EXISTS ai_execution_logs (
   created_at TIMESTAMP DEFAULT now()
 );
 
-CREATE INDEX idx_ai_logs_org_id ON ai_execution_logs(organization_id);
-CREATE INDEX idx_ai_logs_agent_id ON ai_execution_logs(agent_id);
-CREATE INDEX idx_ai_logs_task_id ON ai_execution_logs(task_id);
-CREATE INDEX idx_ai_logs_created_at ON ai_execution_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_logs_org_id ON ai_execution_logs(organization_id);
+CREATE INDEX IF NOT EXISTS idx_ai_logs_agent_id ON ai_execution_logs(agent_id);
+CREATE INDEX IF NOT EXISTS idx_ai_logs_task_id ON ai_execution_logs(task_id);
+CREATE INDEX IF NOT EXISTS idx_ai_logs_created_at ON ai_execution_logs(created_at DESC);
 
 -- AI Usage Limits (per organization)
 CREATE TABLE IF NOT EXISTS ai_usage_limits (
@@ -70,9 +70,9 @@ CREATE TABLE IF NOT EXISTS agent_system_prompts (
   updated_at TIMESTAMP DEFAULT now()
 );
 
-CREATE INDEX idx_prompts_org_id ON agent_system_prompts(organization_id);
-CREATE INDEX idx_prompts_agent_id ON agent_system_prompts(agent_id);
-CREATE UNIQUE INDEX idx_prompts_unique ON agent_system_prompts(agent_id);
+CREATE INDEX IF NOT EXISTS idx_prompts_org_id ON agent_system_prompts(organization_id);
+CREATE INDEX IF NOT EXISTS idx_prompts_agent_id ON agent_system_prompts(agent_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_prompts_unique ON agent_system_prompts(agent_id);
 
 -- Company Goals
 CREATE TABLE IF NOT EXISTS company_goals (
@@ -88,8 +88,8 @@ CREATE TABLE IF NOT EXISTS company_goals (
   updated_at TIMESTAMP DEFAULT now()
 );
 
-CREATE INDEX idx_goals_org_id ON company_goals(organization_id);
-CREATE INDEX idx_goals_status ON company_goals(status);
+CREATE INDEX IF NOT EXISTS idx_goals_org_id ON company_goals(organization_id);
+CREATE INDEX IF NOT EXISTS idx_goals_status ON company_goals(status);
 
 -- Approval Requests
 CREATE TABLE IF NOT EXISTS approval_requests (
@@ -110,10 +110,10 @@ CREATE TABLE IF NOT EXISTS approval_requests (
   response_notes TEXT
 );
 
-CREATE INDEX idx_approvals_org_id ON approval_requests(organization_id);
-CREATE INDEX idx_approvals_status ON approval_requests(status);
-CREATE INDEX idx_approvals_task_id ON approval_requests(task_id);
-CREATE INDEX idx_approvals_expires_at ON approval_requests(expires_at);
+CREATE INDEX IF NOT EXISTS idx_approvals_org_id ON approval_requests(organization_id);
+CREATE INDEX IF NOT EXISTS idx_approvals_status ON approval_requests(status);
+CREATE INDEX IF NOT EXISTS idx_approvals_task_id ON approval_requests(task_id);
+CREATE INDEX IF NOT EXISTS idx_approvals_expires_at ON approval_requests(expires_at);
 
 -- Task Outcomes (learning)
 CREATE TABLE IF NOT EXISTS task_outcomes (
@@ -129,14 +129,15 @@ CREATE TABLE IF NOT EXISTS task_outcomes (
   created_at TIMESTAMP DEFAULT now()
 );
 
-CREATE INDEX idx_outcomes_org_id ON task_outcomes(organization_id);
-CREATE INDEX idx_outcomes_task_id ON task_outcomes(task_id);
-CREATE INDEX idx_outcomes_agent_id ON task_outcomes(agent_id);
+CREATE INDEX IF NOT EXISTS idx_outcomes_org_id ON task_outcomes(organization_id);
+CREATE INDEX IF NOT EXISTS idx_outcomes_task_id ON task_outcomes(task_id);
+CREATE INDEX IF NOT EXISTS idx_outcomes_agent_id ON task_outcomes(agent_id);
 
 -- Row Level Security for new tables
 
 -- ai_provider_config RLS
 ALTER TABLE ai_provider_config ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "ai_provider_org_isolation" ON ai_provider_config;
 CREATE POLICY "ai_provider_org_isolation"
   ON ai_provider_config
   USING (
@@ -147,6 +148,7 @@ CREATE POLICY "ai_provider_org_isolation"
 
 -- ai_execution_logs RLS
 ALTER TABLE ai_execution_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "ai_logs_org_isolation" ON ai_execution_logs;
 CREATE POLICY "ai_logs_org_isolation"
   ON ai_execution_logs
   USING (
@@ -157,6 +159,7 @@ CREATE POLICY "ai_logs_org_isolation"
 
 -- ai_usage_limits RLS
 ALTER TABLE ai_usage_limits ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "ai_limits_org_isolation" ON ai_usage_limits;
 CREATE POLICY "ai_limits_org_isolation"
   ON ai_usage_limits
   USING (
@@ -167,6 +170,7 @@ CREATE POLICY "ai_limits_org_isolation"
 
 -- agent_system_prompts RLS
 ALTER TABLE agent_system_prompts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "prompts_org_isolation" ON agent_system_prompts;
 CREATE POLICY "prompts_org_isolation"
   ON agent_system_prompts
   USING (
@@ -177,6 +181,7 @@ CREATE POLICY "prompts_org_isolation"
 
 -- company_goals RLS
 ALTER TABLE company_goals ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "goals_org_isolation" ON company_goals;
 CREATE POLICY "goals_org_isolation"
   ON company_goals
   USING (
@@ -187,6 +192,7 @@ CREATE POLICY "goals_org_isolation"
 
 -- approval_requests RLS
 ALTER TABLE approval_requests ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "approvals_org_isolation" ON approval_requests;
 CREATE POLICY "approvals_org_isolation"
   ON approval_requests
   USING (
@@ -197,6 +203,7 @@ CREATE POLICY "approvals_org_isolation"
 
 -- task_outcomes RLS
 ALTER TABLE task_outcomes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "outcomes_org_isolation" ON task_outcomes;
 CREATE POLICY "outcomes_org_isolation"
   ON task_outcomes
   USING (

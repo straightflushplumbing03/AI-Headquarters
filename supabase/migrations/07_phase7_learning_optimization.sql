@@ -381,6 +381,7 @@ CREATE INDEX IF NOT EXISTS idx_business_memory_active ON business_memory(active)
 
 CREATE INDEX IF NOT EXISTS idx_competitive_intel_org ON competitive_intelligence(organization_id);
 CREATE INDEX IF NOT EXISTS idx_competitive_intel_importance ON competitive_intelligence(importance);
+ALTER TABLE competitive_intelligence ADD COLUMN IF NOT EXISTS status text;
 CREATE INDEX IF NOT EXISTS idx_competitive_intel_status ON competitive_intelligence(status);
 CREATE INDEX IF NOT EXISTS idx_competitive_intel_competitor ON competitive_intelligence(competitor_name);
 
@@ -405,38 +406,47 @@ CREATE INDEX IF NOT EXISTS idx_briefing_date ON executive_intelligence_briefing(
 
 -- ROW LEVEL SECURITY
 ALTER TABLE prediction_accuracy_log ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS prediction_accuracy_org_isolation ON prediction_accuracy_log;
 CREATE POLICY prediction_accuracy_org_isolation ON prediction_accuracy_log
   FOR ALL USING (organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = auth.uid()));
 
 ALTER TABLE agent_performance_metrics ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS agent_performance_org_isolation ON agent_performance_metrics;
 CREATE POLICY agent_performance_org_isolation ON agent_performance_metrics
   FOR ALL USING (organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = auth.uid()));
 
 ALTER TABLE business_memory ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS business_memory_org_isolation ON business_memory;
 CREATE POLICY business_memory_org_isolation ON business_memory
   FOR ALL USING (organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = auth.uid()));
 
 ALTER TABLE competitive_intelligence ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS competitive_intelligence_org_isolation ON competitive_intelligence;
 CREATE POLICY competitive_intelligence_org_isolation ON competitive_intelligence
   FOR ALL USING (organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = auth.uid()));
 
 ALTER TABLE strategy_experiments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS strategy_experiments_org_isolation ON strategy_experiments;
 CREATE POLICY strategy_experiments_org_isolation ON strategy_experiments
   FOR ALL USING (organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = auth.uid()));
 
 ALTER TABLE learning_recommendations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS learning_recommendations_org_isolation ON learning_recommendations;
 CREATE POLICY learning_recommendations_org_isolation ON learning_recommendations
   FOR ALL USING (organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = auth.uid()));
 
 ALTER TABLE system_health_metrics ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS system_health_org_isolation ON system_health_metrics;
 CREATE POLICY system_health_org_isolation ON system_health_metrics
   FOR ALL USING (organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = auth.uid()));
 
 ALTER TABLE ai_provider_performance ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ai_provider_org_isolation ON ai_provider_performance;
 CREATE POLICY ai_provider_org_isolation ON ai_provider_performance
   FOR ALL USING (organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = auth.uid()));
 
 ALTER TABLE executive_intelligence_briefing ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS executive_briefing_org_isolation ON executive_intelligence_briefing;
 CREATE POLICY executive_briefing_org_isolation ON executive_intelligence_briefing
   FOR ALL USING (organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = auth.uid()));
 

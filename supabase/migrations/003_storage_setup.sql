@@ -4,10 +4,12 @@ values ('organizations', 'organizations')
 on conflict do nothing;
 
 -- Storage policies for organizations bucket
+drop policy if exists "Anyone can view organization logos" on storage.objects;
 create policy "Anyone can view organization logos"
   on storage.objects for select
   using (bucket_id = 'organizations');
 
+drop policy if exists "Authenticated users can upload to their org bucket" on storage.objects;
 create policy "Authenticated users can upload to their org bucket"
   on storage.objects for insert
   with check (

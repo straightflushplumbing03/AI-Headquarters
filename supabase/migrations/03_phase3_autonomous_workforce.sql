@@ -25,10 +25,10 @@ CREATE TABLE IF NOT EXISTS agent_registry (
   updated_at TIMESTAMP DEFAULT now()
 );
 
-CREATE INDEX idx_agent_registry_org_id ON agent_registry(organization_id);
-CREATE INDEX idx_agent_registry_type ON agent_registry(type);
-CREATE INDEX idx_agent_registry_status ON agent_registry(status);
-CREATE UNIQUE INDEX idx_agent_registry_unique ON agent_registry(organization_id, name, version);
+CREATE INDEX IF NOT EXISTS idx_agent_registry_org_id ON agent_registry(organization_id);
+CREATE INDEX IF NOT EXISTS idx_agent_registry_type ON agent_registry(type);
+CREATE INDEX IF NOT EXISTS idx_agent_registry_status ON agent_registry(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_registry_unique ON agent_registry(organization_id, name, version);
 
 -- Agent Capabilities
 CREATE TABLE IF NOT EXISTS agent_capabilities (
@@ -43,9 +43,9 @@ CREATE TABLE IF NOT EXISTS agent_capabilities (
   created_at TIMESTAMP DEFAULT now()
 );
 
-CREATE INDEX idx_capabilities_agent_id ON agent_capabilities(agent_id);
-CREATE INDEX idx_capabilities_org_id ON agent_capabilities(organization_id);
-CREATE INDEX idx_capabilities_type ON agent_capabilities(capability_type);
+CREATE INDEX IF NOT EXISTS idx_capabilities_agent_id ON agent_capabilities(agent_id);
+CREATE INDEX IF NOT EXISTS idx_capabilities_org_id ON agent_capabilities(organization_id);
+CREATE INDEX IF NOT EXISTS idx_capabilities_type ON agent_capabilities(capability_type);
 
 -- Enhanced Tasks (extends Phase 2 tasks)
 CREATE TABLE IF NOT EXISTS task_workflows (
@@ -60,8 +60,8 @@ CREATE TABLE IF NOT EXISTS task_workflows (
   updated_at TIMESTAMP DEFAULT now()
 );
 
-CREATE INDEX idx_workflows_org_id ON task_workflows(organization_id);
-CREATE INDEX idx_workflows_status ON task_workflows(status);
+CREATE INDEX IF NOT EXISTS idx_workflows_org_id ON task_workflows(organization_id);
+CREATE INDEX IF NOT EXISTS idx_workflows_status ON task_workflows(status);
 
 -- Task with extended properties
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS workflow_id UUID REFERENCES task_workflows(id) ON DELETE SET NULL;
@@ -76,9 +76,9 @@ ALTER TABLE tasks ADD COLUMN IF NOT EXISTS estimated_cost NUMERIC(10, 6);
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS actual_cost NUMERIC(10, 6);
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS confidence_score NUMERIC(3, 2);
 
-CREATE INDEX idx_tasks_priority_score ON tasks(priority_score DESC);
-CREATE INDEX idx_tasks_depends_on ON tasks(depends_on);
-CREATE INDEX idx_tasks_approval_status ON tasks(approval_status);
+CREATE INDEX IF NOT EXISTS idx_tasks_priority_score ON tasks(priority_score DESC);
+CREATE INDEX IF NOT EXISTS idx_tasks_depends_on ON tasks(depends_on);
+CREATE INDEX IF NOT EXISTS idx_tasks_approval_status ON tasks(approval_status);
 
 -- Opportunity Registry
 CREATE TABLE IF NOT EXISTS opportunities (
@@ -100,10 +100,10 @@ CREATE TABLE IF NOT EXISTS opportunities (
   updated_at TIMESTAMP DEFAULT now()
 );
 
-CREATE INDEX idx_opportunities_org_id ON opportunities(organization_id);
-CREATE INDEX idx_opportunities_priority_score ON opportunities(priority_score DESC);
-CREATE INDEX idx_opportunities_status ON opportunities(status);
-CREATE INDEX idx_opportunities_category ON opportunities(category);
+CREATE INDEX IF NOT EXISTS idx_opportunities_org_id ON opportunities(organization_id);
+CREATE INDEX IF NOT EXISTS idx_opportunities_priority_score ON opportunities(priority_score DESC);
+CREATE INDEX IF NOT EXISTS idx_opportunities_status ON opportunities(status);
+CREATE INDEX IF NOT EXISTS idx_opportunities_category ON opportunities(category);
 
 -- Competitive Intelligence
 CREATE TABLE IF NOT EXISTS competitive_intelligence (
@@ -125,10 +125,10 @@ CREATE TABLE IF NOT EXISTS competitive_intelligence (
   updated_at TIMESTAMP DEFAULT now()
 );
 
-CREATE INDEX idx_competitive_org_id ON competitive_intelligence(organization_id);
-CREATE INDEX idx_competitive_competitor ON competitive_intelligence(competitor_name);
-CREATE INDEX idx_competitive_importance ON competitive_intelligence(importance);
-CREATE INDEX idx_competitive_created_at ON competitive_intelligence(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_competitive_org_id ON competitive_intelligence(organization_id);
+CREATE INDEX IF NOT EXISTS idx_competitive_competitor ON competitive_intelligence(competitor_name);
+CREATE INDEX IF NOT EXISTS idx_competitive_importance ON competitive_intelligence(importance);
+CREATE INDEX IF NOT EXISTS idx_competitive_created_at ON competitive_intelligence(created_at DESC);
 
 -- SEO Opportunities
 CREATE TABLE IF NOT EXISTS seo_opportunities (
@@ -149,9 +149,9 @@ CREATE TABLE IF NOT EXISTS seo_opportunities (
   created_at TIMESTAMP DEFAULT now()
 );
 
-CREATE INDEX idx_seo_opp_org_id ON seo_opportunities(organization_id);
-CREATE INDEX idx_seo_opp_keyword ON seo_opportunities(keyword);
-CREATE INDEX idx_seo_opp_priority ON seo_opportunities(priority_score DESC);
+CREATE INDEX IF NOT EXISTS idx_seo_opp_org_id ON seo_opportunities(organization_id);
+CREATE INDEX IF NOT EXISTS idx_seo_opp_keyword ON seo_opportunities(keyword);
+CREATE INDEX IF NOT EXISTS idx_seo_opp_priority ON seo_opportunities(priority_score DESC);
 
 -- Knowledge System
 CREATE TABLE IF NOT EXISTS organizational_knowledge (
@@ -171,10 +171,10 @@ CREATE TABLE IF NOT EXISTS organizational_knowledge (
   updated_at TIMESTAMP DEFAULT now()
 );
 
-CREATE INDEX idx_knowledge_org_id ON organizational_knowledge(organization_id);
-CREATE INDEX idx_knowledge_type ON organizational_knowledge(knowledge_type);
-CREATE INDEX idx_knowledge_category ON organizational_knowledge(category);
-CREATE INDEX idx_knowledge_tags ON organizational_knowledge USING GIN(tags);
+CREATE INDEX IF NOT EXISTS idx_knowledge_org_id ON organizational_knowledge(organization_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_type ON organizational_knowledge(knowledge_type);
+CREATE INDEX IF NOT EXISTS idx_knowledge_category ON organizational_knowledge(category);
+CREATE INDEX IF NOT EXISTS idx_knowledge_tags ON organizational_knowledge USING GIN(tags);
 
 -- Task Outcomes with Learning
 ALTER TABLE task_outcomes ADD COLUMN IF NOT EXISTS inference_confidence NUMERIC(3, 2);
@@ -199,9 +199,9 @@ CREATE TABLE IF NOT EXISTS workflow_executions (
   updated_at TIMESTAMP DEFAULT now()
 );
 
-CREATE INDEX idx_workflow_exec_org_id ON workflow_executions(organization_id);
-CREATE INDEX idx_workflow_exec_status ON workflow_executions(status);
-CREATE INDEX idx_workflow_exec_workflow_id ON workflow_executions(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_exec_org_id ON workflow_executions(organization_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_exec_status ON workflow_executions(status);
+CREATE INDEX IF NOT EXISTS idx_workflow_exec_workflow_id ON workflow_executions(workflow_id);
 
 -- Scheduled Jobs
 CREATE TABLE IF NOT EXISTS scheduled_jobs (
@@ -220,9 +220,9 @@ CREATE TABLE IF NOT EXISTS scheduled_jobs (
   updated_at TIMESTAMP DEFAULT now()
 );
 
-CREATE INDEX idx_scheduled_jobs_org_id ON scheduled_jobs(organization_id);
-CREATE INDEX idx_scheduled_jobs_next_run ON scheduled_jobs(next_run_at);
-CREATE INDEX idx_scheduled_jobs_status ON scheduled_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_org_id ON scheduled_jobs(organization_id);
+CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_next_run ON scheduled_jobs(next_run_at);
+CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_status ON scheduled_jobs(status);
 
 -- External Data Connectors
 CREATE TABLE IF NOT EXISTS external_connectors (
@@ -241,13 +241,14 @@ CREATE TABLE IF NOT EXISTS external_connectors (
   updated_at TIMESTAMP DEFAULT now()
 );
 
-CREATE INDEX idx_connectors_org_id ON external_connectors(organization_id);
-CREATE INDEX idx_connectors_provider ON external_connectors(provider);
-CREATE INDEX idx_connectors_status ON external_connectors(status);
+CREATE INDEX IF NOT EXISTS idx_connectors_org_id ON external_connectors(organization_id);
+CREATE INDEX IF NOT EXISTS idx_connectors_provider ON external_connectors(provider);
+CREATE INDEX IF NOT EXISTS idx_connectors_status ON external_connectors(status);
 
 -- RLS Policies for new tables
 
 ALTER TABLE agent_registry ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "agent_registry_org_isolation" ON agent_registry;
 CREATE POLICY "agent_registry_org_isolation"
   ON agent_registry
   USING (
@@ -257,6 +258,7 @@ CREATE POLICY "agent_registry_org_isolation"
   );
 
 ALTER TABLE agent_capabilities ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "agent_capabilities_org_isolation" ON agent_capabilities;
 CREATE POLICY "agent_capabilities_org_isolation"
   ON agent_capabilities
   USING (
@@ -266,6 +268,7 @@ CREATE POLICY "agent_capabilities_org_isolation"
   );
 
 ALTER TABLE task_workflows ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "task_workflows_org_isolation" ON task_workflows;
 CREATE POLICY "task_workflows_org_isolation"
   ON task_workflows
   USING (
@@ -275,6 +278,7 @@ CREATE POLICY "task_workflows_org_isolation"
   );
 
 ALTER TABLE opportunities ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "opportunities_org_isolation" ON opportunities;
 CREATE POLICY "opportunities_org_isolation"
   ON opportunities
   USING (
@@ -284,6 +288,7 @@ CREATE POLICY "opportunities_org_isolation"
   );
 
 ALTER TABLE competitive_intelligence ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "competitive_intelligence_org_isolation" ON competitive_intelligence;
 CREATE POLICY "competitive_intelligence_org_isolation"
   ON competitive_intelligence
   USING (
@@ -293,6 +298,7 @@ CREATE POLICY "competitive_intelligence_org_isolation"
   );
 
 ALTER TABLE seo_opportunities ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "seo_opportunities_org_isolation" ON seo_opportunities;
 CREATE POLICY "seo_opportunities_org_isolation"
   ON seo_opportunities
   USING (
@@ -302,6 +308,7 @@ CREATE POLICY "seo_opportunities_org_isolation"
   );
 
 ALTER TABLE organizational_knowledge ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "organizational_knowledge_org_isolation" ON organizational_knowledge;
 CREATE POLICY "organizational_knowledge_org_isolation"
   ON organizational_knowledge
   USING (
@@ -311,6 +318,7 @@ CREATE POLICY "organizational_knowledge_org_isolation"
   );
 
 ALTER TABLE workflow_executions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "workflow_executions_org_isolation" ON workflow_executions;
 CREATE POLICY "workflow_executions_org_isolation"
   ON workflow_executions
   USING (
@@ -320,6 +328,7 @@ CREATE POLICY "workflow_executions_org_isolation"
   );
 
 ALTER TABLE scheduled_jobs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "scheduled_jobs_org_isolation" ON scheduled_jobs;
 CREATE POLICY "scheduled_jobs_org_isolation"
   ON scheduled_jobs
   USING (
@@ -329,6 +338,7 @@ CREATE POLICY "scheduled_jobs_org_isolation"
   );
 
 ALTER TABLE external_connectors ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "external_connectors_org_isolation" ON external_connectors;
 CREATE POLICY "external_connectors_org_isolation"
   ON external_connectors
   USING (
