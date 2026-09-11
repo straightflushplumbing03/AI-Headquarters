@@ -73,7 +73,7 @@ export function SignInForm() {
       </form>
 
       <p className="text-center text-slate-400 text-sm mt-6">
-        Don't have an account?{' '}
+        Don&apos;t have an account?{' '}
         <a href="/auth/signup" className="text-primary-400 hover:text-primary-300">
           Sign up
         </a>

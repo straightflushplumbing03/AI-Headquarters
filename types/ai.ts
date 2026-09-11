@@ -1,5 +1,3 @@
-import { SupabaseClient } from '@supabase/supabase-js'
-
 export interface AIProviderConfig {
   provider: 'openai' | 'anthropic' | 'pending'
   model: string

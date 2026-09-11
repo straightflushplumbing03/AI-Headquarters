@@ -7,9 +7,12 @@ import { Container } from '@/components/Container'
 
 export default function AuthCallback() {
   const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
+    // Sprint 5.3 P0: create the browser client INSIDE the effect. The page
+    // must render without env-configured Supabase clients (e.g. during build
+    // prerendering), and createBrowserClient() throws when env is absent.
+    const supabase = createClient()
     const handleCallback = async () => {
       try {
         // Get the session from the URL hash
@@ -29,7 +32,7 @@ export default function AuthCallback() {
     }
 
     handleCallback()
-  }, [router, supabase])
+  }, [router])
 
   return (
     <Container className="flex items-center justify-center min-h-screen">

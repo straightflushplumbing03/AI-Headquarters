@@ -84,46 +84,6 @@ export class AICostController {
     return { allowed: true }
   }
 
-  async recordCost(
-    organizationId: string,
-    agentId: string,
-    taskId: string,
-    actualCost: number,
-    provider: string,
-    model: string,
-    inputTokens: number,
-    outputTokens: number,
-    executionTimeMs: number
-  ): Promise<void> {
-    await this.supabase.from('ai_execution_logs').insert([
-      {
-        organization_id: organizationId,
-        agent_id: agentId,
-        task_id: taskId,
-        provider,
-        model,
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
-        estimated_cost: actualCost,
-        actual_cost: actualCost,
-        execution_time_ms: executionTimeMs,
-        status: 'success',
-      },
-    ])
-
-    const { data: currentLimits } = await this.supabase
-      .from('ai_usage_limits')
-      .select('current_spend')
-      .eq('organization_id', organizationId)
-      .single()
-
-    const newSpend = (currentLimits?.current_spend || 0) + actualCost
-    await this.supabase
-      .from('ai_usage_limits')
-      .update({ current_spend: newSpend })
-      .eq('organization_id', organizationId)
-  }
-
   async getOrganizationMonthlySpend(organizationId: string): Promise<number> {
     const monthStart = new Date()
     monthStart.setDate(1)

@@ -37,6 +37,7 @@ export class BusinessHealthService {
       trend_summary: overall > 70 ? 'improving' : 'stable',
       top_strengths: ['Website performance', 'Lead volume'],
       top_concerns: overall < 60 ? ['Revenue declining'] : [],
+      generated_by_system: 'business-health-service',
     };
 
     const { data: stored } = await this.supabase

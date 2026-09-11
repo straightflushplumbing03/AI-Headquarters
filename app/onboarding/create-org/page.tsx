@@ -7,9 +7,14 @@ import { Container } from '@/components/Container'
 import { Button } from '@/components/Button'
 import { Input } from '@/components/Input'
 
+// Onboarding depends on runtime env/session — never statically prerender.
+export const dynamic = 'force-dynamic'
+
 export default function CreateOrganizationPage() {
   const router = useRouter()
-  const supabase = createClient()
+  // Sprint 5.3 P0: create the browser client lazily inside handlers. The page
+  // must render without env-configured Supabase clients (build prerendering
+  // throws otherwise), and createBrowserClient() requires env at call time.
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
@@ -23,35 +28,26 @@ export default function CreateOrganizationPage() {
     setError(null)
 
     try {
+      const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      const { data: org, error: orgError } = await supabase
-        .from('organizations')
-        .insert([
-          {
-            name: formData.name,
-            slug: formData.slug || formData.name.toLowerCase().replace(/\s+/g, '-'),
-          },
-        ])
-        .select()
-        .single()
+      // S53-APP-INTEGRATION: organization creation goes through the atomic
+      // create_organization RPC (migration 018). The two-step client-side
+      // insert (org, then first owner membership) could never succeed: the
+      // first membership cannot satisfy the is_org_owner RLS policy on an
+      // empty org, and the org INSERT...RETURNING read-back is filtered by
+      // the SELECT policy for a user with no membership yet.
+      const slug = formData.slug || formData.name.toLowerCase().replace(/\s+/g, '-')
+      const { data: orgId, error: orgError } = await supabase.rpc('create_organization', {
+        p_name: formData.name,
+        p_slug: slug,
+      })
 
       if (orgError) throw orgError
+      if (!orgId) throw new Error('Organization creation returned no id')
 
-      const { error: memberError } = await supabase
-        .from('organization_members')
-        .insert([
-          {
-            organization_id: org.id,
-            user_id: user.id,
-            role: 'owner',
-          },
-        ])
-
-      if (memberError) throw memberError
-
-      router.push(`/headquarters/${org.id}`)
+      router.push(`/headquarters/${orgId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create organization')
     } finally {
@@ -73,7 +69,7 @@ export default function CreateOrganizationPage() {
           label="Organization Name"
           placeholder="My Company"
           value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })}
           disabled={loading}
           required
         />
@@ -81,7 +77,7 @@ export default function CreateOrganizationPage() {
           label="Organization Slug (optional)"
           placeholder="my-company"
           value={formData.slug}
-          onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, slug: e.target.value })}
           disabled={loading}
         />
 

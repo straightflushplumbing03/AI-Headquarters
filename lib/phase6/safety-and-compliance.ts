@@ -4,7 +4,7 @@ export class SafetyAndCompliance {
   constructor(private supabase: SupabaseClient) {}
 
   async validateActionSafety(
-    organizationId: string,
+    _organizationId: string,
     action: any
   ): Promise<{ allowed: boolean; reason?: string }> {
     if (action.authorization_level === 'level_4') {

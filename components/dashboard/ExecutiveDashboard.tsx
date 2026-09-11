@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/browser'
 import { Container } from '@/components/Container'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
-import type { Organization, Agent, Department, Task } from '@/types/models'
+import type { Organization, Agent, Task } from '@/types/models'
 
 export function ExecutiveDashboard() {
   const params = useParams()

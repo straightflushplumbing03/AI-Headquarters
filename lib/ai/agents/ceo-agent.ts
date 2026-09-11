@@ -1,5 +1,4 @@
 import { SupabaseClient } from '@supabase/supabase-js'
-import type { AgentSystemPrompt } from '@/types/ai'
 
 /**
  * AI CEO Agent
@@ -70,7 +69,7 @@ Always respond with structured output.
    * Build context for AI CEO
    */
   async buildContext(
-    supabase: SupabaseClient,
+    _supabase: SupabaseClient,
     companyInfo: any,
     goals: any[],
     agents: any[],

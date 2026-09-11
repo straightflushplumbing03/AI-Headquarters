@@ -38,6 +38,7 @@ export async function createTask(
     creatorId,
     'task_created',
     `Task created: ${title}`,
+    undefined,
     { task_id: data.id, priority }
   )
 

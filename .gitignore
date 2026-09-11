@@ -14,6 +14,9 @@ node_modules
 /build
 /dist
 
+# Vercel CLI link/build metadata
+.vercel
+
 # Misc
 .DS_Store
 *.pem
@@ -40,3 +43,4 @@ lerna-debug.log*
 
 # Supabase
 .supabase/
+supabase/.temp/

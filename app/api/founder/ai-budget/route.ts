@@ -2,6 +2,9 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyFounderAccess } from '@/lib/founder/permissions'
 import { FounderAccountManager } from '@/lib/founder/founder-manager'
 
+// Per-user endpoint: must never be statically prerendered at build time.
+export const dynamic = 'force-dynamic'
+
 /**
  * Founder-only endpoints
  * All require server-side verification of Founder role

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+// Per-user endpoint: must never be statically prerendered at build time.
+export const dynamic = 'force-dynamic'
+
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const supabase = await createClient()

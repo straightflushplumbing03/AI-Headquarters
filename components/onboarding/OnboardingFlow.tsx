@@ -326,7 +326,7 @@ export function OnboardingFlow() {
           <div className="animate-slideUp">
             <h2 className="text-3xl font-bold mb-4">Welcome to AI Headquarters</h2>
             <p className="text-slate-300 mb-6">
-              Let's set up your branded virtual headquarters. Your AI workforce is waiting to transform your business.
+              Let&apos;s set up your branded virtual headquarters. Your AI workforce is waiting to transform your business.
             </p>
             <div className="space-y-4 mb-8 bg-slate-800 rounded-lg p-6">
               <div className="flex items-start gap-3">
@@ -351,14 +351,14 @@ export function OnboardingFlow() {
                 </div>
               </div>
             </div>
-            <Button onClick={handleNext} className="w-full">Let's Get Started</Button>
+            <Button onClick={handleNext} className="w-full">Let&apos;s Get Started</Button>
           </div>
         )}
 
         {/* Step 2: Company Name */}
         {step === 2 && (
           <div className="animate-slideUp">
-            <h2 className="text-2xl font-bold mb-2">What's your company name?</h2>
+            <h2 className="text-2xl font-bold mb-2">What&apos;s your company name?</h2>
             <p className="text-slate-400 mb-6">This will be displayed throughout your headquarters</p>
             <Input
               label="Company Name"
@@ -374,7 +374,7 @@ export function OnboardingFlow() {
         {/* Step 3: Website */}
         {step === 3 && (
           <div className="animate-slideUp">
-            <h2 className="text-2xl font-bold mb-2">What's your website?</h2>
+            <h2 className="text-2xl font-bold mb-2">What&apos;s your website?</h2>
             <p className="text-slate-400 mb-6">This helps our AI team learn about your business</p>
             <Input
               label="Website URL"
@@ -480,7 +480,7 @@ export function OnboardingFlow() {
         {/* Step 7: Primary Goal */}
         {step === 7 && (
           <div className="animate-slideUp">
-            <h2 className="text-2xl font-bold mb-2">What's your primary business goal?</h2>
+            <h2 className="text-2xl font-bold mb-2">What&apos;s your primary business goal?</h2>
             <p className="text-slate-400 mb-6">What do you want your AI workforce to focus on?</p>
             <textarea
               className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors h-32 resize-none"

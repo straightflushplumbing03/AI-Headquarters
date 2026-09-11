@@ -1,13 +1,12 @@
 'use client'
 
 import { Department, Agent } from '@/types/models'
-import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 
 interface DepartmentAreaProps {
   department: Department
   agents: Agent[]
-  organizationColors: {
+  organizationColors?: {
     primary: string
     secondary: string
     accent: string
@@ -18,7 +17,6 @@ interface DepartmentAreaProps {
 export function DepartmentArea({
   department,
   agents,
-  organizationColors,
   onSelectAgent,
 }: DepartmentAreaProps) {
   return (

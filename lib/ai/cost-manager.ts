@@ -26,29 +26,6 @@ export class AICostManager {
   }
 
   /**
-   * Record AI execution cost
-   */
-  async recordCost(
-    organizationId: string,
-    cost: number,
-    agentId?: string,
-    taskId?: string
-  ): Promise<void> {
-    const { data: limits } = await this.supabase
-      .from('ai_usage_limits')
-      .select('current_spend')
-      .eq('organization_id', organizationId)
-      .single()
-
-    const currentSpend = (limits?.current_spend || 0) + cost
-
-    await this.supabase
-      .from('ai_usage_limits')
-      .update({ current_spend: currentSpend })
-      .eq('organization_id', organizationId)
-  }
-
-  /**
    * Get current spending
    */
   async getSpending(organizationId: string): Promise<{

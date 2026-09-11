@@ -49,7 +49,7 @@ export function LogoUpload() {
       // Upload to Supabase Storage
       const fileName = `${organizationId}/logo-${Date.now()}.${file.type.split('/')[1]}`
       
-      const { data, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('logos')
         .upload(fileName, file, {
           cacheControl: '3600',

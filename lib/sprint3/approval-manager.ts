@@ -11,6 +11,8 @@
 
 import { SupabaseClient } from '@supabase/supabase-js'
 import type { UserRole } from '@/lib/auth/permissions'
+import { BackgroundJobQueue } from '@/lib/jobs/queue'
+import type { ExecuteActionPayload } from '@/lib/jobs/types'
 
 export interface ApprovalCheckResult {
   valid: boolean
@@ -100,8 +102,63 @@ export class ApprovalManager {
 
     if (updateError) return { success: false, error: updateError.message }
 
+    // Sprint 5.3: connect APPROVAL → EXECUTION. Instead of relying on a user
+    // keeping a browser open, approve enqueues a durable execute job through
+    // the background queue. The job runs the Sprint 3 ActionExecutionEngine,
+    // which re-validates every fail-closed check before the action fires.
+    // If the enqueue fails, the approval still succeeds — the tick endpoint's
+    // maintenance sweeps and manual re-enqueue provide recovery, and the
+    // action stays 'queued' rather than falsely 'completed'.
+    const linkedAction = await this.findLinkedAction(approvalId, organizationId)
+    if (linkedAction) {
+      const queue = new BackgroundJobQueue(this.supabase)
+      const payload: ExecuteActionPayload = {
+        actionId: linkedAction.id,
+        idempotencyKey: linkedAction.idempotency_key || `approval-${approvalId}`,
+      }
+      const enqueueResult = await queue.enqueue({
+        jobType: 'execute_autonomous_action',
+        organizationId,
+        idempotencyKey: `execute-${payload.idempotencyKey}`,
+        payload: payload as unknown as Record<string, unknown>,
+        createdBy: userId,
+      })
+      if (enqueueResult.error) {
+        console.error('[approval-manager] execute job enqueue failed:', enqueueResult.error)
+      }
+    }
+
     await this.logApprovalAction(userId, organizationId, approvalId, 'approved', notes)
     return { success: true }
+  }
+
+  /**
+   * Find the autonomous action linked to this approval (via its decision),
+   * one that is still pending execution. Returns null when the approval is
+   * not action-linked or the action already completed/cancelled.
+   */
+  private async findLinkedAction(
+    approvalId: string,
+    organizationId: string
+  ): Promise<{ id: string; idempotency_key: string | null } | null> {
+    const { data: approval } = await this.supabase
+      .from('approval_requests')
+      .select('decision_id')
+      .eq('id', approvalId)
+      .eq('organization_id', organizationId)
+      .single()
+    if (!approval?.decision_id) return null
+
+    const { data: action } = await this.supabase
+      .from('autonomous_actions')
+      .select('id, idempotency_key, execution_status')
+      .eq('decision_id', approval.decision_id)
+      .eq('organization_id', organizationId)
+      .in('execution_status', ['queued', 'scheduled', 'executing', 'failed'])
+    .limit(1)
+      .maybeSingle()
+
+    return action ?? null
   }
 
   async rejectAction(

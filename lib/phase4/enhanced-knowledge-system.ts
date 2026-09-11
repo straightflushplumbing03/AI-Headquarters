@@ -106,9 +106,11 @@ export class EnhancedKnowledgeSystem {
       .eq('organization_id', organizationId)
 
     return {
-      total_learnings: learnings?.[0]?.count || 0,
-      total_patterns: patterns?.[0]?.count || 0,
-      knowledge_base_size: (learnings?.[0]?.count || 0) + (patterns?.[0]?.count || 0),
+      total_learnings: (learnings as unknown as { count: number }[] | null)?.[0]?.count || 0,
+      total_patterns: (patterns as unknown as { count: number }[] | null)?.[0]?.count || 0,
+      knowledge_base_size:
+        ((learnings as unknown as { count: number }[] | null)?.[0]?.count || 0) +
+        ((patterns as unknown as { count: number }[] | null)?.[0]?.count || 0),
       status: 'operational',
     }
   }

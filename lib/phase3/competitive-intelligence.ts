@@ -73,9 +73,8 @@ export class CompetitiveIntelligenceManager {
       .from('competitive_intelligence')
       .select('competitor_name')
       .eq('organization_id', organizationId)
-      .distinct()
 
-    return (data || []).map((d) => d.competitor_name).filter(Boolean)
+    return [...new Set((data || []).map((d: { competitor_name: string }) => d.competitor_name).filter(Boolean))]
   }
 
   /**

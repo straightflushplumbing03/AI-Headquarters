@@ -15,9 +15,9 @@ export function CreateTask() {
   const organizationId = params.id as string
   const supabase = createClient()
 
-  const [organization, setOrganization] = useState<Organization | null>(null)
+  const [_organization, setOrganization] = useState<Organization | null>(null)
   const [agents, setAgents] = useState<Agent[]>([])
-  const [departments, setDepartments] = useState<Department[]>([])
+  const [_departments, setDepartments] = useState<Department[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)

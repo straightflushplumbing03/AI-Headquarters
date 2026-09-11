@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { ApprovalManager } from '@/lib/sprint3/approval-manager'
 
+// Per-user endpoint: must never be statically prerendered at build time.
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)

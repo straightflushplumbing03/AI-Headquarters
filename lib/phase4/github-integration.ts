@@ -36,7 +36,7 @@ export class GitHubIntegration {
   /**
    * Get risk level based on content
    */
-  assessRiskLevel(filesChanged: string[], riskLevel: string): 'low' | 'medium' | 'high' {
+  assessRiskLevel(filesChanged: string[], _riskLevel?: string): 'low' | 'medium' | 'high' {
     // High-risk patterns
     if (
       filesChanged.some(

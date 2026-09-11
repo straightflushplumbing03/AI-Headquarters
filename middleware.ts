@@ -20,16 +20,16 @@ const authRoutes = [
 ]
 
 export async function middleware(request: NextRequest) {
-  const response = await updateSession(request)
+  const { response, session } = await updateSession(request)
   const { pathname } = request.nextUrl
-  
-  // Get session from cookies
-  const sessionCookie = request.cookies.get('sb-auth-token')?.value
-  const isAuthenticated = !!sessionCookie
+
+  // Session is derived from the refreshed Supabase auth session (cookies
+  // managed by @supabase/ssr), not a hardcoded cookie name.
+  const isAuthenticated = !!session?.user
 
   // Check if route is protected
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route))
-  
+
   // Check if route is auth route
   const isAuthRoute = authRoutes.some(route => pathname.startsWith(route))
 

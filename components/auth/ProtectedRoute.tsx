@@ -7,10 +7,8 @@ import { Container } from '@/components/Container'
 
 export function ProtectedRoute({
   children,
-  requiredRole,
 }: {
   children: React.ReactNode
-  requiredRole?: 'owner' | 'admin' | 'member' | 'viewer'
 }) {
   const router = useRouter()
   const supabase = createClient()

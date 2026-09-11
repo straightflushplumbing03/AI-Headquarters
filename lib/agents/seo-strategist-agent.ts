@@ -70,7 +70,7 @@ Provide at least 10 content gap opportunities.`
     return await this.executeAnalysis(userId, userMessage)
   }
 
-  private async executeAnalysis(userId: string, userMessage: string): Promise<AIExecutionResult> {
+  private async executeAnalysis(_userId: string, userMessage: string): Promise<AIExecutionResult> {
     const provider = getAIProvider()
     const request: AIExecutionRequest = {
       organizationId: this.organizationId,
@@ -89,6 +89,7 @@ Provide at least 10 content gap opportunities.`
         inputTokens: 0,
         outputTokens: 0,
         estimatedCost: 0,
+        actualCost: 0,
         executionTimeMs: 0,
         error: error.message,
       }

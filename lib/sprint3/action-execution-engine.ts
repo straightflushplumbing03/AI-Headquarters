@@ -3,16 +3,27 @@
  * 
  * FAIL-CLOSED enforcement for autonomous actions:
  * - Approval enforcement
- * - Budget protection
+ * - Budget protection (Sprint 5.3 P2: ATOMIC database-side reservation —
+ *   reserve after authorization, settle/release after execution, never a
+ *   check-then-spend race; idempotent per action idempotency key)
  * - Kill switch integration
  * - Idempotency checking
  * - Risk-based authorization
  * 
- * No action executes without passing ALL checks.
+ * Pipeline order (every execution path, no bypass):
+ *   AUTH → ORG MEMBERSHIP → PERMISSIONS → RISK → APPROVAL → KILL SWITCH →
+ *   ATOMIC BUDGET RESERVATION → IDEMPOTENCY CLAIM → EXECUTE →
+ *   SETTLE (actual, clamped by the DB) OR RELEASE (failure) → AUDIT
+ *
+ * No action executes without passing ALL checks. Any check failure blocks;
+ * blocks after the reservation step release the hold (reaper as safety net).
  */
 
 import { SupabaseClient } from '@supabase/supabase-js'
-import { AICostController } from '@/lib/ai/cost-controller'
+import {
+  BudgetReservationService,
+  PermanentBudgetError,
+} from '@/lib/sprint3/budget-reservation'
 import type { UserRole } from '@/lib/auth/permissions'
 
 export type OperatingMode = 'shadow' | 'approval' | 'autonomous'
@@ -23,7 +34,8 @@ export interface ActionExecutionRequest {
   // Request context
   organizationId: string
   userId: string
-  userRole: UserRole
+  /** Optional for system executions (background jobs); required otherwise. */
+  userRole?: UserRole
 
   // Action definition
   decisionId: string
@@ -42,6 +54,16 @@ export interface ActionExecutionRequest {
   payload: Record<string, any>
   idempotencyKey: string
   operatingMode: OperatingMode
+
+  /**
+   * Sprint 5.3: set ONLY by the background-job handler executing an already
+   * approved action without an end-user session. Skips the per-user
+   * authentication/membership checks (the job queue authenticated the caller
+   * — CRON secret or verified member — and the job's organization_id is
+   * derived from the claimed row). Every other fail-closed check still runs:
+   * risk, approval validity, kill switches, budget, atomic idempotency.
+   */
+  systemExecution?: boolean
 }
 
 export interface ExecutionCheckResult {
@@ -49,13 +71,19 @@ export interface ExecutionCheckResult {
   blockReason?: string
   passedChecks: string[]
   failedChecks: string[]
+  /**
+   * Sprint 5.3 P2: id of the ATOMIC budget hold taken in runAllChecks (after
+   * authorization, before idempotency). Null when no cost was reserved.
+   * Settled on success, released on failure/block — never orphaned.
+   */
+  budgetReservationId?: string | null
 }
 
 export class ActionExecutionEngine {
-  private costController: AICostController
+  private budgetReservations: BudgetReservationService
 
   constructor(private supabase: SupabaseClient) {
-    this.costController = new AICostController(supabase)
+    this.budgetReservations = new BudgetReservationService(supabase)
   }
 
   /**
@@ -68,10 +96,17 @@ export class ActionExecutionEngine {
     result?: Record<string, any>
     error?: string
   }> {
-    // 1. Run all checks
+    // 1. Run all checks (budget reservation is taken atomically inside)
     const checks = await this.runAllChecks(request)
+    const reservationId = checks.budgetReservationId ?? null
 
     if (!checks.allowed) {
+      // A block AFTER the reservation step (idempotency claim) must not
+      // strand the hold. Release it best-effort; the stale-hold reaper is the
+      // safety net if this release itself fails.
+      if (reservationId) {
+        await this.budgetReservations.release(reservationId, request.organizationId)
+      }
       // Log blocked attempt
       await this.logBlockedAction(request, checks.blockReason || 'Unknown reason', checks.failedChecks)
 
@@ -82,8 +117,12 @@ export class ActionExecutionEngine {
       }
     }
 
-    // 2. In shadow mode, don't execute external actions
+    // 2. In shadow mode, don't execute external actions — release the hold
+    //    so shadow runs never consume budget.
     if (request.operatingMode === 'shadow') {
+      if (reservationId) {
+        await this.budgetReservations.release(reservationId, request.organizationId)
+      }
       await this.logShadowAction(request, checks.passedChecks)
       return {
         success: true,
@@ -96,7 +135,24 @@ export class ActionExecutionEngine {
     try {
       const result = await this.performAction(request)
 
-      // 4. Record execution
+      // 4. Settle the reservation with the ACTUAL cost when the action
+      //    reported one; otherwise charge the reserved estimate. The DATABASE
+      //    clamps the charge to the reserved hold (never inflates budget).
+      //    Idempotent: a retried settle of an already-settled hold is a no-op.
+      const actualCost =
+        typeof result?.actualCost === 'number' && result.actualCost >= 0
+          ? result.actualCost
+          : (request.estimatedCost ?? 0)
+      try {
+        await this.budgetReservations.settle(reservationId, request.organizationId, actualCost)
+      } catch (settleError: any) {
+        // Never swallow: a settle failure means the ledger may be wrong.
+        console.error(
+          `[engine] budget settle failed for action ${request.actionId}: ${settleError?.message}`
+        )
+      }
+
+      // 5. Record execution
       await this.recordActionExecution(request, result, 'completed')
 
       return {
@@ -105,6 +161,11 @@ export class ActionExecutionEngine {
         result,
       }
     } catch (error: any) {
+      // Release the hold on failure (idempotent; reaper covers release bugs).
+      if (reservationId) {
+        await this.budgetReservations.release(reservationId, request.organizationId)
+      }
+
       // Record failure
       await this.recordActionExecution(request, { error: error.message }, 'failed', error.message)
 
@@ -123,23 +184,34 @@ export class ActionExecutionEngine {
     const passedChecks: string[] = []
     const failedChecks: string[] = []
 
-    // 1. Authentication check
-    if (!request.userId) {
-      failedChecks.push('authentication_missing')
-      return { allowed: false, blockReason: 'User not authenticated', passedChecks, failedChecks }
-    }
-    passedChecks.push('authentication')
+    // 1. Authentication check (skipped only for verified system executions)
+    if (request.systemExecution) {
+      passedChecks.push('system_execution_identity')
+    } else {
+      if (!request.userId) {
+        failedChecks.push('authentication_missing')
+        return { allowed: false, blockReason: 'User not authenticated', passedChecks, failedChecks }
+      }
+      passedChecks.push('authentication')
 
-    // 2. Organization authorization
-    const orgCheck = await this.checkOrganizationAccess(request.userId, request.organizationId)
-    if (!orgCheck) {
-      failedChecks.push('organization_unauthorized')
-      return { allowed: false, blockReason: 'Not a member of this organization', passedChecks, failedChecks }
+      // 2. Organization authorization (user path only)
+      const orgCheck = await this.checkOrganizationAccess(request.userId, request.organizationId)
+      if (!orgCheck) {
+        failedChecks.push('organization_unauthorized')
+        return { allowed: false, blockReason: 'Not a member of this organization', passedChecks, failedChecks }
+      }
+      passedChecks.push('organization_access')
     }
-    passedChecks.push('organization_access')
 
-    // 3. Permission check
-    const permCheck = this.checkPermission(request.userRole, request.authorizationLevel)
+    // 3. Permission check.
+    // Background (system) executions have no end-user role: the job queue
+    // authenticated the caller (CRON secret / verified member) and the action
+    // was already approval-gated. The action's own risk/authorization/approval
+    // gates below STILL run — critical risk remains blocked outright.
+    const effectiveRole: UserRole | undefined = request.systemExecution
+      ? 'admin'
+      : request.userRole
+    const permCheck = this.checkPermission(effectiveRole, request.authorizationLevel)
     if (!permCheck) {
       failedChecks.push('insufficient_permissions')
       return { allowed: false, blockReason: 'Insufficient permissions for this action', passedChecks, failedChecks }
@@ -147,7 +219,7 @@ export class ActionExecutionEngine {
     passedChecks.push('permissions')
 
     // 4. Risk check
-    const riskCheck = this.checkRiskAuthorization(request.riskLevel, request.userRole, request.approvalRequired)
+    const riskCheck = this.checkRiskAuthorization(request.riskLevel, effectiveRole, request.approvalRequired)
     if (!riskCheck) {
       failedChecks.push('risk_level_blocked')
       return { allowed: false, blockReason: 'Risk level requires approval', passedChecks, failedChecks }
@@ -174,18 +246,59 @@ export class ActionExecutionEngine {
     }
     passedChecks.push('kill_switches_clear')
 
-    // 7. Budget check (if applicable)
-    if (request.estimatedCost && request.estimatedCost > 0) {
-      const budgetCheck = await this.costController.checkBudget(
-        request.organizationId,
-        'action-engine',
-        request.estimatedCost
-      )
-      if (!budgetCheck.allowed) {
-        failedChecks.push('budget_exceeded')
-        return { allowed: false, blockReason: budgetCheck.reason, passedChecks, failedChecks }
+    // 6.5 Fast-fail duplicate check (pre-reservation).
+    //
+    // The ATOMIC idempotency claim still runs AFTER the reservation step
+    // (required order). This cheap pre-check only short-circuits actions
+    // that ALREADY COMPLETED, so a queue retry of a finished action is
+    // rejected as a duplicate instead of first consuming (and releasing)
+    // budget. Fail-closed: it can only BLOCK, never allow.
+    const { data: completedDuplicate } = await this.supabase
+      .from('autonomous_actions')
+      .select('id')
+      .eq('idempotency_key', request.idempotencyKey)
+      .eq('organization_id', request.organizationId)
+      .eq('execution_status', 'completed')
+      .maybeSingle()
+
+    if (completedDuplicate) {
+      failedChecks.push('duplicate_execution')
+      return { allowed: false, blockReason: 'Action with this ID already executed successfully', passedChecks, failedChecks }
+    }
+
+    // 7. ATOMIC BUDGET RESERVATION (Sprint 5.3 P2)
+    //
+    // Replaces the old check-then-spend gate with a database-side atomic
+    // hold: reserve_budget_idempotent() locks the budget row FOR UPDATE and
+    // inserts the hold or fails — no read-modify-write, so concurrent actions
+    // can never over-commit. Idempotent per action idempotency key: retries,
+    // duplicate enqueues, and duplicate ticks reuse the same hold.
+    // Fail-closed: any reservation error blocks execution.
+    let budgetReservationId: string | null = null
+    const estimated = request.estimatedCost ?? 0
+    if (estimated > 0) {
+      try {
+        const reservation = await this.budgetReservations.reserve({
+          organizationId: request.organizationId,
+          amount: estimated,
+          actionIdempotencyKey: request.idempotencyKey,
+          reference: `action:${request.actionId}`,
+        })
+        budgetReservationId = reservation.reservationId
+        if (budgetReservationId) {
+          passedChecks.push('budget_reserved')
+        } else {
+          passedChecks.push('no_budget_cost')
+        }
+      } catch (error: any) {
+        failedChecks.push(error instanceof PermanentBudgetError ? 'budget_config_invalid' : 'budget_exceeded')
+        return {
+          allowed: false,
+          blockReason: `Budget reservation failed: ${error?.message ?? 'unknown error'}`,
+          passedChecks,
+          failedChecks,
+        }
       }
-      passedChecks.push('budget_available')
     } else {
       passedChecks.push('no_budget_cost')
     }
@@ -199,11 +312,17 @@ export class ActionExecutionEngine {
     const claim = await this.claimIdempotencyKey(request)
     if (!claim.allowed) {
       failedChecks.push('duplicate_execution')
-      return { allowed: false, blockReason: claim.reason, passedChecks, failedChecks }
+      return {
+        allowed: false,
+        blockReason: claim.reason,
+        passedChecks,
+        failedChecks,
+        budgetReservationId,
+      }
     }
     passedChecks.push('idempotency_valid')
 
-    return { allowed: true, passedChecks, failedChecks }
+    return { allowed: true, passedChecks, failedChecks, budgetReservationId }
   }
 
   /**
@@ -233,6 +352,32 @@ export class ActionExecutionEngine {
       if (existing.execution_status === 'completed') {
         return { allowed: false, reason: 'Action with this ID already executed successfully' }
       }
+
+      // Sprint 5.3 (async execution path): when the existing row IS the action
+      // we were asked to execute (pre-created with the decision, status
+      // 'queued'/'executing'/'failed'), this execution owns it. Transition it
+      // to 'executing' with a conditional update so two concurrent executors
+      // of the same action cannot both win — the loser sees 0 rows and blocks.
+      if (existing.id === request.actionId && existing.execution_status !== 'completed') {
+        const { data: claimed } = await this.supabase
+          .from('autonomous_actions')
+          .update({
+            execution_status: 'executing',
+            started_at: new Date().toISOString(),
+            completed_at: null,
+            last_error: null,
+          })
+          .eq('id', existing.id)
+          .eq('organization_id', request.organizationId)
+          .eq('execution_status', existing.execution_status)
+          .select('id')
+
+        if (claimed && claimed.length > 0) {
+          return { allowed: true }
+        }
+        return { allowed: false, reason: 'Action claimed by a concurrent execution' }
+      }
+
       // Allow retry: re-claim the failed row for this execution attempt.
       if (existing.execution_status === 'failed') {
         await this.supabase
@@ -246,7 +391,8 @@ export class ActionExecutionEngine {
           .eq('organization_id', request.organizationId)
         return { allowed: true }
       }
-      // Executing or queued - don't allow concurrent execution
+      // A DIFFERENT action already holds this idempotency key and is in
+      // flight - don't allow concurrent execution.
       return { allowed: false, reason: 'Action already in progress' }
     }
 
@@ -432,10 +578,10 @@ export class ActionExecutionEngine {
   private async logBlockedAction(request: ActionExecutionRequest, reason: string, failedChecks: string[]): Promise<void> {
     await this.supabase.from('audit_logs').insert({
       organization_id: request.organizationId,
-      user_id: request.userId,
+      user_id: request.userId || null,
       action: 'action_execution_blocked',
       resource: `action:${request.actionId}`,
-      reason,
+      details: reason,
       metadata: { failedChecks, riskLevel: request.riskLevel },
       timestamp: new Date().toISOString(),
     })
@@ -447,10 +593,10 @@ export class ActionExecutionEngine {
   private async logShadowAction(request: ActionExecutionRequest, passedChecks: string[]): Promise<void> {
     await this.supabase.from('audit_logs').insert({
       organization_id: request.organizationId,
-      user_id: request.userId,
+      user_id: request.userId || null,
       action: 'action_shadow_mode',
       resource: `action:${request.actionId}`,
-      reason: 'Executed in shadow mode - no external action performed',
+      details: 'Executed in shadow mode - no external action performed',
       metadata: { passedChecks, operatingMode: request.operatingMode },
       timestamp: new Date().toISOString(),
     })

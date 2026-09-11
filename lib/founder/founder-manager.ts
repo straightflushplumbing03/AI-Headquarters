@@ -45,14 +45,4 @@ export class FounderAccountManager {
       })
   }
 
-  async recordFounderAISpend(userId: string, cost: number): Promise<void> {
-    const { data: budget } = await this.supabase
-      .from('founder_ai_budgets')
-      .select('current_spend')
-      .eq('user_id', userId)
-      .single()
-
-    const newSpend = (budget?.current_spend || 0) + cost
-    await this.supabase.from('founder_ai_budgets').update({ current_spend: newSpend }).eq('user_id', userId)
-  }
 }

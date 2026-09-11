@@ -81,6 +81,7 @@ export class AIExecutionPipeline {
         inputTokens: 0,
         outputTokens: 0,
         estimatedCost: 0,
+        actualCost: 0,
         executionTimeMs: 0,
         error: error.message,
       }
@@ -263,6 +264,7 @@ export class AIExecutionPipeline {
       inputTokens: 0,
       outputTokens: 0,
       estimatedCost: 0,
+      actualCost: 0,
       executionTimeMs: 0,
       error: 'Budget exceeded',
     }

@@ -1,11 +1,22 @@
-import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 import { AIExecutionService } from '@/lib/ai/execution-service'
 import type { AIExecutionRequest } from '@/types/ai'
 
+// Per-user endpoint: must never be statically prerendered at build time.
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: POST /api/ai/execute
- * Executes AI request with budget check and cost tracking
- * 
+ * Executes AI request with budget check and cost tracking.
+ *
+ * SECURITY (Sprint 5.1):
+ * - The caller's identity comes ONLY from the session cookie (createClient()).
+ * - The caller must be a member of the target organization; membership is
+ *   verified server-side against organization_members.
+ * - Database access uses the user-scoped client, so RLS applies.
+ * - The service-role key is never used here.
+ *
  * Request:
  * {
  *   organizationId: string
@@ -15,110 +26,124 @@ import type { AIExecutionRequest } from '@/types/ai'
  *   userMessage: string
  *   maxTokens?: number
  * }
- * 
- * Response:
- * {
- *   success: boolean
- *   content: string (AI response or error)
- *   inputTokens: number
- *   outputTokens: number
- *   actualCost: number
- *   executionTimeMs: number
- *   provider?: 'openai' | 'anthropic'
- *   model?: string
- *   error?: string
- *   errorType?: string
- * }
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    // 1. Parse request
-    const body = (await request.json()) as AIExecutionRequest
+    // 1. Authenticate from session cookie — fail closed.
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-    // 2. Validate required fields
-    if (!body.organizationId || !body.agentId || !body.taskId || !body.systemPrompt || !body.userMessage) {
-      return new Response(
-        JSON.stringify({
+    if (!user) {
+      return NextResponse.json(
+        {
           success: false,
-          error: 'Missing required fields',
-          errorType: 'invalid_request',
-        }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
+          error: 'Unauthorized',
+          errorType: 'unauthorized',
+        },
+        { status: 401 }
       )
     }
 
-    // 3. Initialize service (server-side only)
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-      process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-    )
-    const executionService = new AIExecutionService(supabase)
+    // 2. Parse request
+    const body = (await request.json()) as AIExecutionRequest
 
-    // 4. Execute AI with budget checks
+    // 3. Validate required fields
+    if (
+      !body.organizationId ||
+      !body.agentId ||
+      !body.taskId ||
+      !body.systemPrompt ||
+      !body.userMessage
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Missing required fields',
+          errorType: 'invalid_request',
+        },
+        { status: 400 }
+      )
+    }
+
+    // 4. Verify the caller is a member of the target organization (fail closed).
+    const { data: member } = await supabase
+      .from('organization_members')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('organization_id', body.organizationId)
+      .single()
+
+    if (!member) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Organization access denied',
+          errorType: 'forbidden',
+        },
+        { status: 403 }
+      )
+    }
+
+    // 5. Execute with the user-scoped client (RLS enforced server-side).
+    const executionService = new AIExecutionService(supabase)
     const result = await executionService.execute(body)
 
-    // 5. Return result
-    return new Response(JSON.stringify(result), {
-      status: result.success ? 200 : 400,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    // 6. Return result
+    return NextResponse.json(result, { status: result.success ? 200 : 400 })
   } catch (error: any) {
     console.error('[AI Execute Error]', error.message)
-    return new Response(
-      JSON.stringify({
+    return NextResponse.json(
+      {
         success: false,
         error: 'Internal server error',
         errorType: 'server_error',
-      }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      },
+      { status: 500 }
     )
   }
 }
 
 /**
- * API Route: GET /api/ai/spending
- * Get organization AI spending status
- * 
- * Query params:
- * - organizationId: string
- * 
- * Response:
- * {
- *   monthlyBudget: number
- *   currentSpend: number
- *   remaining: number
- *   percentUsed: number
- * }
+ * API Route: GET /api/ai/execute?organizationId=...
+ * Get organization AI spending status (members only).
  */
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
     const organizationId = searchParams.get('organizationId')
 
     if (!organizationId) {
-      return new Response(
-        JSON.stringify({ error: 'Missing organizationId' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      )
+      return NextResponse.json({ error: 'Missing organizationId' }, { status: 400 })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-      process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-    )
-    const executionService = new AIExecutionService(supabase)
+    const { data: member } = await supabase
+      .from('organization_members')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('organization_id', organizationId)
+      .single()
 
+    if (!member) {
+      return NextResponse.json({ error: 'Organization access denied' }, { status: 403 })
+    }
+
+    const executionService = new AIExecutionService(supabase)
     const spending = await executionService.getOrganizationSpending(organizationId)
 
-    return new Response(JSON.stringify(spending), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return NextResponse.json(spending)
   } catch (error: any) {
     console.error('[AI Spending Error]', error.message)
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

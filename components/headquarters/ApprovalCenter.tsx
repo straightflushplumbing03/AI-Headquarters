@@ -6,14 +6,14 @@ import { createClient } from '@/lib/supabase/browser'
 import { Container } from '@/components/Container'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
-import type { Organization, Agent } from '@/types/models'
+import type { Organization } from '@/types/models'
 
 export function ApprovalCenter() {
   const params = useParams()
   const organizationId = params.id as string
   const supabase = createClient()
 
-  const [organization, setOrganization] = useState<Organization | null>(null)
+  const [_organization, setOrganization] = useState<Organization | null>(null)
   const [approvals, setApprovals] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 

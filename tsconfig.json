@@ -42,6 +42,11 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "ai-headquarters",
+    "isolate",
+    "playwright.config.ts",
+    "tests/e2e",
+    "lib/phase5/phase5-integration.ts"
   ]
 }

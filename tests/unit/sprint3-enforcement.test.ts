@@ -56,6 +56,15 @@ function makeSupabase(tables: Record<string, Row[]>) {
         if (rows.length === 0) return { data: null, error: { message: 'No rows' } }
         return { data: rows[0], error: null }
       },
+      // Sprint 5.3 P2: the engine's pre-reservation duplicate check uses
+      // maybeSingle (0 or 1 rows expected — the key is unique-constrained).
+      maybeSingle: async () => {
+        const rows = readRows().filter((r: Row) =>
+          Object.entries(filters).every(([k, v]) => r[k] === v)
+        )
+        callLog.push({ op: 'select', table, filters })
+        return { data: rows.length > 0 ? rows[0] : null, error: null }
+      },
       eq: (col: string, val: any) => {
         filters[col] = val
         return builder
@@ -81,18 +90,23 @@ function makeSupabase(tables: Record<string, Row[]>) {
             filters[col] = val
             return update
           },
+          // Sprint 5.3: conditional claim path awaits .select() after update.
+          select: () => update,
           // Terminal: apply update to matching rows.
           then: (resolve: any) => {
             const rows = readRows()
-            let matched = 0
+            const updated: Row[] = []
             for (const r of rows) {
               if (Object.entries(filters).every(([k, v]) => r[k] === v)) {
                 Object.assign(r, payload)
-                matched++
+                updated.push(r)
               }
             }
             callLog.push({ op: 'update', table, payload, filters })
-            resolve({ data: matched ? rows : null, error: matched ? null : { message: 'No rows updated' } })
+            resolve({
+              data: updated.length ? updated : null,
+              error: updated.length ? null : { message: 'No rows updated' },
+            })
           },
         }
         return update
