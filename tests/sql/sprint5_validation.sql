@@ -322,3 +322,24 @@ BEGIN
  RAISE NOTICE 'T10 PASS';
 END;
 $t10$;
+
+-- =====================================================================
+-- LIVE-SCHEMA COMPATIBILITY (Sprint 5.3 app integration)
+-- =====================================================================
+-- The live znpqosbwdgrtfediqvwt project evolved `budget_reservations`
+-- past migration 08:
+--   * Table columns: reserved_amount / settled_amount (not `amount`),
+--     status vocabulary 'reserved' | 'settled' | 'released'
+--     (not 'pending' | 'completed' | 'expired').
+--   * New canonical engine functions exist (reserve_budget_idempotent,
+--     settle_budget, settle_budget_clamped, release_budget,
+--     release_stale_budget_reservations, check_budget_available).
+--   * The classic set-of reserve_budget(uuid,numeric,text,interval) and
+--     settle_reservation(uuid) from migration 08 were DRIFT-BROKEN against
+--     the live schema.  Migration 09_fix_reserve_budget_drift.sql drops the
+--     broken classic overload and re-creates it (plus settle_reservation)
+--     speaking the live vocabulary, so T9/T10-style code works again.
+-- Accounting note: the live engine does NOT decrement the org's
+-- reserved_amount on settle/release (spend = sum of settled; reserved is a
+-- hold watermark).  T9's `current_spend = 25` assertion is compatible.
+-- =====================================================================

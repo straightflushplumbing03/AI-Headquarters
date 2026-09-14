@@ -263,7 +263,67 @@ export class PendingProvider extends AIProvider {
   }
 }
 
+export class FakeProvider extends AIProvider {
+  name: ProviderName = 'openai'
+  isConfigured = true
+  status = 'active' as const
+  errorMessage?: string
+  private failNext: boolean
+
+  constructor(failNext = false) {
+    super()
+    this.failNext = failNext
+  }
+
+  // Fixed non-zero cost so the integration test deterministically observes a
+  // non-trivial settlement, regardless of prompt length.
+  private static readonly FIXED_COST = 0.1234
+
+  async execute(request: AIExecutionRequest): Promise<AIExecutionResult> {
+    const tokensIn = Math.ceil((request.systemPrompt.length + request.userMessage.length) / 4)
+    const out = 100
+    const cost = FakeProvider.FIXED_COST
+    if (this.failNext) {
+      return {
+        success: false,
+        content: '',
+        inputTokens: tokensIn,
+        outputTokens: 0,
+        estimatedCost: cost,
+        actualCost: 0,
+        executionTimeMs: 1,
+        provider: 'openai',
+        model: 'gpt-4-turbo',
+        error: 'fake provider failure',
+        errorType: 'unknown_error',
+      }
+    }
+    return {
+      success: true,
+      content: 'FAKE_OK',
+      inputTokens: tokensIn,
+      outputTokens: out,
+      estimatedCost: cost,
+      actualCost: cost,
+      executionTimeMs: 2,
+      provider: 'openai',
+      model: 'gpt-4-turbo',
+    }
+  }
+
+  estimateCost(inputTokens: number, outputTokens: number): number {
+    return FakeProvider.FIXED_COST
+  }
+}
+
 export function getAIProvider(preferredProvider?: ProviderName): AIProvider {
+  // Deterministic provider ONLY for the integration smoke test. This is
+  // guarded by an explicit env flag so it can never be selected in prod;
+  // production always returns real providers (or PendingProvider).
+  if (process.env.BUSINESS_BRAIN_SMOKE_FAKE_PROVIDER === '1') {
+    return new FakeProvider(false)
+  }
+
   const openaiKey = process.env.OPENAI_API_KEY
   const anthropicKey = process.env.ANTHROPIC_API_KEY
 
