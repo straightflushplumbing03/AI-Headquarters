@@ -16,7 +16,13 @@ import { SupabaseClient } from '@supabase/supabase-js'
 import { getAIProvider } from './providers'
 import { AICostController } from './cost-controller'
 import { BudgetReservationService, PermanentBudgetError } from '@/lib/sprint3/budget-reservation'
+import { logFinancial } from '@/lib/ai/financial-logger'
 import type { AIExecutionRequest, AIExecutionResult } from '@/types/ai'
+
+/** Structured trace id for a single execution attempt. */
+function executionId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
 
 export class AIExecutionService {
   private costController: AICostController
@@ -97,6 +103,23 @@ export class AIExecutionService {
     const outputEstimate = request.maxTokens || 2000
     const estimatedCost = provider.estimateCost(inputEstimate, outputEstimate)
 
+    const execId = executionId()
+    const execCtx = {
+      organizationId: request.organizationId,
+      agentId: request.agentId,
+      taskId: request.taskId,
+      requestId: request.taskId ? `exec:${request.taskId}` : null,
+      executionId: execId,
+      provider: provider.name,
+      model: (provider as { model?: string }).model ?? null,
+    }
+
+    logFinancial({
+      op: 'execution.start',
+      ctx: execCtx,
+      amounts: { requested: estimatedCost },
+    })
+
     // 5. ATOMIC BUDGET RESERVATION (replaces the racy read-modify-write check)
     //    The RPC re-checks fail-closed: global kill switch, org pause, and
     //    remaining budget under a row lock. Idempotent per task so retries and
@@ -114,9 +137,12 @@ export class AIExecutionService {
       reservationId = reservation.reservationId
     } catch (error: any) {
       const message = error?.message || 'Budget authorization failed'
-      console.error(
-        `[AI Execute] budget authorization failed for org ${request.organizationId}: ${message}`
-      )
+      logFinancial({
+        op: 'budget.reserve.rejected',
+        ctx: execCtx,
+        amounts: { requested: estimatedCost },
+        extra: { reason: message },
+      })
       return {
         success: false,
         content: '',
@@ -132,12 +158,24 @@ export class AIExecutionService {
       }
     }
 
+    logFinancial({
+      op: 'execution.reserved',
+      ctx: execCtx,
+      extra: { reservationId: reservationId ?? null },
+    })
+
     // 6. NOW EXECUTE PROVIDER (a valid atomic hold is in place)
     let result: AIExecutionResult
     try {
       result = await provider.execute(request)
     } catch (error: any) {
       // Provider threw — no spend recorded; free the hold.
+      logFinancial({
+        op: 'execution.failure',
+        ctx: execCtx,
+        amounts: { requested: estimatedCost, actual: 0 },
+        extra: { stage: 'provider_throw', reason: error?.message || 'unknown error' },
+      })
       await this.budget.release(reservationId, request.organizationId)
       return {
         success: false,
@@ -151,6 +189,13 @@ export class AIExecutionService {
         errorType: 'provider_error',
       }
     }
+
+    logFinancial({
+      op: result.success ? 'execution.success' : 'execution.failure',
+      ctx: execCtx,
+      amounts: { requested: estimatedCost, actual: result.actualCost },
+      extra: { stage: 'provider_returned' },
+    })
 
     // 7. SETTLE OR RELEASE (settle failures are logged, never swallowed; the
     //    stale-hold reaper is the safety net for a failed settle).
@@ -179,6 +224,11 @@ export class AIExecutionService {
             status: result.success ? 'success' : 'failed',
           },
         ])
+        logFinancial({
+          op: 'execution.log.persisted',
+          ctx: execCtx,
+          amounts: { settled: result.actualCost },
+        })
       } catch (error: any) {
         console.error(
           `[AI Execute] execution-log insert failed for org ${request.organizationId}: ${error?.message}`

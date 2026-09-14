@@ -24,6 +24,7 @@ import {
   BudgetReservationService,
   PermanentBudgetError,
 } from '@/lib/sprint3/budget-reservation'
+import { logFinancial } from '@/lib/ai/financial-logger'
 import type { UserRole } from '@/lib/auth/permissions'
 
 export type OperatingMode = 'shadow' | 'approval' | 'autonomous'
@@ -100,6 +101,13 @@ export class ActionExecutionEngine {
     const checks = await this.runAllChecks(request)
     const reservationId = checks.budgetReservationId ?? null
 
+    const engineCtx = {
+      organizationId: request.organizationId,
+      actionId: request.actionId,
+      taskId: typeof request.payload?.taskId === 'string' ? request.payload.taskId : null,
+      requestId: request.idempotencyKey ?? null,
+    }
+
     if (!checks.allowed) {
       // A block AFTER the reservation step (idempotency claim) must not
       // strand the hold. Release it best-effort; the stale-hold reaper is the
@@ -107,6 +115,12 @@ export class ActionExecutionEngine {
       if (reservationId) {
         await this.budgetReservations.release(reservationId, request.organizationId)
       }
+      logFinancial({
+        op: 'execution.failure',
+        ctx: engineCtx,
+        amounts: { reserved: request.estimatedCost ?? 0 },
+        extra: { stage: 'pre_execution_block', reason: checks.blockReason ?? 'unknown', failedChecks: checks.failedChecks },
+      })
       // Log blocked attempt
       await this.logBlockedAction(request, checks.blockReason || 'Unknown reason', checks.failedChecks)
 
@@ -123,6 +137,12 @@ export class ActionExecutionEngine {
       if (reservationId) {
         await this.budgetReservations.release(reservationId, request.organizationId)
       }
+      logFinancial({
+        op: 'execution.failure',
+        ctx: engineCtx,
+        amounts: { reserved: request.estimatedCost ?? 0 },
+        extra: { stage: 'shadow_mode' },
+      })
       await this.logShadowAction(request, checks.passedChecks)
       return {
         success: true,
@@ -130,6 +150,12 @@ export class ActionExecutionEngine {
         result: { executed: false, reason: 'Shadow mode - no external action executed' },
       }
     }
+
+    logFinancial({
+      op: 'execution.start',
+      ctx: engineCtx,
+      amounts: { requested: request.estimatedCost ?? 0, reserved: request.estimatedCost ?? 0 },
+    })
 
     // 3. Execute action
     try {
@@ -152,6 +178,13 @@ export class ActionExecutionEngine {
         )
       }
 
+      logFinancial({
+        op: 'execution.success',
+        ctx: engineCtx,
+        amounts: { requested: request.estimatedCost ?? 0, actual: actualCost, settled: actualCost },
+        extra: { reservationId: reservationId ?? null },
+      })
+
       // 5. Record execution
       await this.recordActionExecution(request, result, 'completed')
 
@@ -165,6 +198,12 @@ export class ActionExecutionEngine {
       if (reservationId) {
         await this.budgetReservations.release(reservationId, request.organizationId)
       }
+      logFinancial({
+        op: 'execution.failure',
+        ctx: engineCtx,
+        amounts: { reserved: request.estimatedCost ?? 0, actual: 0 },
+        extra: { stage: 'action_throw', reason: error?.message ?? 'unknown' },
+      })
 
       // Record failure
       await this.recordActionExecution(request, { error: error.message }, 'failed', error.message)

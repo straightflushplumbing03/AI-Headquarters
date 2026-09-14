@@ -5,18 +5,33 @@
  * project (znpqosbwdgrtfediqvwt) through the REAL engine code path
  * (AIExecutionService -> BudgetReservationService -> live RPCs).
  *
+ * GATED LIKE THE OTHER LIVE SUITES: the whole suite SKIPS unless the smoke
+ * env is explicitly set (BUSINESS_BRAIN_SMOKE_FAKE_PROVIDER=1 AND the live
+ * Supabase env). Never runs in CI or on a bare `npx vitest run`.
+ *
  * Destructive-safe: uses a dedicated org UUID + cleanup in afterAll. Never
  * touches the three production orgs. The AI provider is the env-gated
  * FakeProvider (BUSINESS_BRAIN_SMOKE_FAKE_PROVIDER=1), so no real tokens
- * are consumed and no OPENAI/ANTHROPIC key is required.
+ * are consumed and no OPENAI/ANTHROPIC key is required. If the flag is set
+ * but the namespace guard refuses the fake (production NODE_ENV), the suite
+ * FAILS closed rather than risking a real provider call.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { AIExecutionService } from '@/lib/ai/execution-service'
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const FAKE = process.env.BUSINESS_BRAIN_SMOKE_FAKE_PROVIDER === '1'
+// Only 'test'/'development'/local app URL are allowed for the fake provider —
+// this same gate is enforced inside getAIProvider (fakeProviderAllowed).
+const SAFE_FAKE_ENV =
+  process.env.NODE_ENV === 'test' ||
+  process.env.NODE_ENV === 'development' ||
+  process.env.NODE_ENV === 'smoke' ||
+  /localhost|127\.0\.0\.1|\.test\.|:3\d{3}/.test(process.env.NEXT_PUBLIC_APP_URL ?? '')
+const CONFIGURED = Boolean(FAKE && url && serviceKey)
 
 const ORG = 'f2222222-0000-4000-8000-000000000009'
 const AGENT = 'f2222222-0000-4000-8000-00000000000a'
@@ -27,9 +42,11 @@ let supa: SupabaseClient
 let engine: AIExecutionService
 
 beforeAll(async () => {
-  expect(url, 'NEXT_PUBLIC_SUPABASE_URL required').toBeTruthy()
-  expect(serviceKey, 'SUPABASE_SERVICE_ROLE_KEY required').toBeTruthy()
-  supa = createClient(url, serviceKey, { auth: { persistSession: false } })
+  if (!CONFIGURED) return
+  if (!SAFE_FAKE_ENV) {
+    throw new Error('SMOKE test refuses untrusted namespace: set NODE_ENV=test (or localhost app URL) to run')
+  }
+  supa = createClient(url!, serviceKey!, { auth: { persistSession: false } })
 
   // fixture org + agent + task + budget
   const { error: orgErr } = await supa.from('organizations').insert({
@@ -72,15 +89,15 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // Full cleanup of fixture org. RLS is not an issue for the service role.
-  await supa.from('ai_execution_logs').delete().in('agent_id', [AGENT]).then(() => {})
-  await supa.from('budget_reservations').delete().eq('organization_id', ORG)
-  await supa.from('ai_usage_limits').delete().eq('organization_id', ORG)
-  await supa.from('tasks').delete().eq('id', TASK)
-  await supa.from('agents').delete().eq('id', AGENT)
-  await supa.from('organizations').delete().eq('id', ORG)
+  await supa?.from('ai_execution_logs').delete().in('agent_id', [AGENT]).then(() => {})
+  await supa?.from('budget_reservations').delete().eq('organization_id', ORG)
+  await supa?.from('ai_usage_limits').delete().eq('organization_id', ORG)
+  await supa?.from('tasks').delete().eq('id', TASK)
+  await supa?.from('agents').delete().eq('id', AGENT)
+  await supa?.from('organizations').delete().eq('id', ORG)
 })
 
-describe('Business Brain live integration (Sprint 5.3)', () => {
+describe.skipIf(!CONFIGURED)('Business Brain live integration (Sprint 5.3)', () => {
   it('reserves budget, executes fake provider, then settles spend', async () => {
     const res = await engine.execute({
       organizationId: ORG,

@@ -17,6 +17,7 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { EmbeddingService } from '@/lib/knowledge/embedding-service'
 import { BudgetReservationService } from '@/lib/sprint3/budget-reservation'
+import { logFinancial } from '@/lib/ai/financial-logger'
 import type {
   BackgroundJobType,
   BudgetReconciliationPayload,
@@ -61,7 +62,12 @@ export const approvalExpirationSweep: JobHandler = async (job, ctx) => {
 
   const expired = data?.length ?? 0
   if (expired > 0) {
-    console.info(`[jobs] approval_expiration_sweep: expired ${expired} approvals for org ${job.organization_id}`)
+    // Structured trace: which approvals went from pending -> expired this run.
+    logFinancial({
+      op: 'approval.expired',
+      ctx: { organizationId: job.organization_id },
+      extra: { count: expired, approvalIds: (data ?? []).map((r) => r.id) },
+    })
   }
 
   return { expired, sweptAt: now }

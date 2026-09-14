@@ -27,6 +27,8 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { logFinancial } from '@/lib/ai/financial-logger'
+import type { FinancialLogContext } from '@/lib/ai/financial-logger'
 
 /** Errors that will not change on retry — the job layer dead-letters them. */
 export class PermanentBudgetError extends Error {
@@ -98,8 +100,20 @@ export class BudgetReservationService {
     // still refusing to run when the org is paused (checked separately by the
     // engine's kill-switch gate before this call).
     if (input.amount === 0) {
+      logFinancial({
+        op: 'budget.reserve.success',
+        ctx: this.ctx(input),
+        amounts: { requested: 0 },
+        extra: { zeroCost: true },
+      })
       return { reservationId: null, deduplicated: false }
     }
+
+    logFinancial({
+      op: 'budget.reserve.start',
+      ctx: this.ctx(input),
+      amounts: { requested: input.amount },
+    })
 
     const { data, error } = await this.supabase.rpc('reserve_budget_idempotent', {
       p_organization_id: input.organizationId,
@@ -112,6 +126,12 @@ export class BudgetReservationService {
 
     if (error) {
       const message = error.message || 'budget reservation failed'
+      logFinancial({
+        op: 'budget.reserve.rejected',
+        ctx: this.ctx(input),
+        amounts: { requested: input.amount },
+        extra: { reason: message, errorType: classifyBudgetError(message) },
+      })
       if (classifyBudgetError(message) === 'permanent') {
         throw new PermanentBudgetError(message)
       }
@@ -121,10 +141,36 @@ export class BudgetReservationService {
 
     if (!data) {
       // Fail-closed: a successful RPC that returns no id is unusable.
+      logFinancial({
+        op: 'budget.reserve.error',
+        ctx: this.ctx(input),
+        amounts: { requested: input.amount },
+        extra: { reason: 'reservation RPC returned no reservation id' },
+      })
       throw new Error('BUDGET_EXCEEDED: reservation RPC returned no reservation id')
     }
 
-    return { reservationId: data, deduplicated: false }
+    logFinancial({
+      op: 'budget.reserve.success',
+      ctx: this.ctx(input),
+      amounts: { requested: input.amount, reserved: input.amount },
+      extra: { reservationId: String(data) },
+    })
+
+    return { reservationId: data as string, deduplicated: false }
+  }
+
+  private ctx(input: ReserveBudgetInput): FinancialLogContext {
+    return {
+      organizationId: input.organizationId,
+      agentId: input.agentId,
+      taskId: input.taskId,
+      reservationId: null,
+      // The caller builds the idempotency key (e.g. `exec:<taskId>`); use it
+      // as the requestId AS-IS so traces join across execution + reserve.
+      requestId: input.actionIdempotencyKey || null,
+      actionId: input.reference || null,
+    }
   }
 
   /**
@@ -138,12 +184,29 @@ export class BudgetReservationService {
     organizationId: string,
     actualAmount: number
   ): Promise<{ settled: boolean }> {
+    const baseCtx: FinancialLogContext = {
+      organizationId,
+      reservationId,
+      settlementId: reservationId,
+    }
     if (!reservationId) return { settled: false }
     if (actualAmount < 0) {
+      logFinancial({
+        op: 'budget.settle.error',
+        ctx: baseCtx,
+        amounts: { actual: actualAmount },
+        extra: { reason: 'INVALID_SETTLEMENT_AMOUNT' },
+      })
       throw new PermanentBudgetError(
         'INVALID_SETTLEMENT_AMOUNT: actual amount must be >= 0'
       )
     }
+
+    logFinancial({
+      op: 'budget.settle.start',
+      ctx: baseCtx,
+      amounts: { actual: actualAmount },
+    })
 
     const { data, error } = await this.supabase.rpc('settle_budget_clamped', {
       p_reservation_id: reservationId,
@@ -153,11 +216,23 @@ export class BudgetReservationService {
 
     if (error) {
       const message = error.message || 'budget settlement failed'
+      logFinancial({
+        op: 'budget.settle.error',
+        ctx: baseCtx,
+        amounts: { actual: actualAmount },
+        extra: { reason: message },
+      })
       if (classifyBudgetError(message) === 'permanent') {
         throw new PermanentBudgetError(message)
       }
       throw new Error(message)
     }
+
+    logFinancial({
+      op: data ? 'budget.settle.success' : 'budget.settle.noop',
+      ctx: baseCtx,
+      amounts: { actual: actualAmount },
+    })
 
     return { settled: Boolean(data) }
   }
@@ -173,17 +248,26 @@ export class BudgetReservationService {
   ): Promise<boolean> {
     if (!reservationId) return false
 
+    const ctx: FinancialLogContext = { organizationId, reservationId }
+    logFinancial({ op: 'budget.release.start', ctx })
+
     const { data, error } = await this.supabase.rpc('release_budget', {
       p_reservation_id: reservationId,
       p_organization_id: organizationId,
     })
 
     if (error) {
-      console.error(
-        `[budget] release failed for reservation ${reservationId} in org ${organizationId}: ${error.message}`
-      )
+      logFinancial({
+        op: 'budget.release.error',
+        ctx,
+        extra: { reason: error.message },
+      })
       return false
     }
+    logFinancial({
+      op: data ? 'budget.release.success' : 'budget.release.noop',
+      ctx,
+    })
     return Boolean(data)
   }
 

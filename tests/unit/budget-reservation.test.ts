@@ -605,6 +605,29 @@ describe('Sprint 5.3 P2 — reservation lifecycle', () => {
     ).rejects.toThrow('KILL_SWITCH_ACTIVE: global emergency stop enabled')
   })
 
+  it('micro-cost holdings are preserved at 6dp (0.1234 reserved exactly)', async () => {
+    const { client, db } = makeBudgetSupabase([
+      { organization_id: 'org-1', monthly_budget: 10 },
+    ])
+    const service = new BudgetReservationService(client)
+
+    const reserved = await service.reserve({
+      organizationId: 'org-1',
+      amount: 0.1234,
+      actionIdempotencyKey: 'micro-1',
+    })
+    expect(reserved.reservationId).toBeTruthy()
+
+    // DB should hold the EXACT micro-cost (re: migration 020 widening to
+    // NUMERIC(12,6)); the mock stores the raw number.
+    expect(Number(db.budget_reservations[0].reserved_amount)).toBeCloseTo(0.1234, 6)
+
+    await service.settle(reserved.reservationId, 'org-1', 0.1234)
+    expect(Number(db.budget_reservations[0].settled_amount)).toBeCloseTo(0.1234, 6)
+    expect(Number(db.ai_usage_limits[0].current_spend)).toBeCloseTo(0.1234, 6)
+    expect(openHolds(db)).toBe(0)
+  })
+
   it('permanent configuration errors are classified as non-retryable', async () => {
     const noRow = makeBudgetSupabase([])
     const service = new BudgetReservationService(noRow.client)

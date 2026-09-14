@@ -4,6 +4,25 @@ import { generateText } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 
+/**
+ * Hard failsafe: the deterministic FakeProvider is ONLY selectable when the
+ * process is running under an explicitly smoke-test-env identifier AND the
+ * opt-in env flag is exactly "1". This double guard makes an accidental
+ * production-selection of the fake provider effectively impossible, even if a
+ * deployment mistakenly sets the env var.
+ */
+function fakeProviderAllowed(): boolean {
+  if (process.env.BUSINESS_BRAIN_SMOKE_FAKE_PROVIDER !== '1') return false
+  const nodeEnv = process.env.NODE_ENV
+  const allowedNs = ['test', 'development', 'smoke']
+  if (nodeEnv && !allowedNs.includes(nodeEnv)) return false
+  // Belts and suspenders: also require the app URL to be a localhost/dev host
+  // when NODE_ENV is unset (e.g. some vitest runners) — never a prod domain.
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+  if (!nodeEnv && appUrl && !/localhost|127\.0\.0\.1|\.test\.|:3\d{3}/.test(appUrl)) return false
+  return true
+}
+
 export abstract class AIProvider {
   abstract name: ProviderName
   abstract isConfigured: boolean
@@ -311,16 +330,17 @@ export class FakeProvider extends AIProvider {
     }
   }
 
-  estimateCost(inputTokens: number, outputTokens: number): number {
+  estimateCost(_inputTokens: number, _outputTokens: number): number {
     return FakeProvider.FIXED_COST
   }
 }
 
 export function getAIProvider(preferredProvider?: ProviderName): AIProvider {
-  // Deterministic provider ONLY for the integration smoke test. This is
-  // guarded by an explicit env flag so it can never be selected in prod;
-  // production always returns real providers (or PendingProvider).
-  if (process.env.BUSINESS_BRAIN_SMOKE_FAKE_PROVIDER === '1') {
+  // Deterministic provider ONLY for the integration smoke test. Guarded by an
+  // explicit env flag AND a namespace check (see fakeProviderAllowed), so it
+  // can never be selected in prod; production always returns real providers
+  // (or PendingProvider).
+  if (fakeProviderAllowed()) {
     return new FakeProvider(false)
   }
 

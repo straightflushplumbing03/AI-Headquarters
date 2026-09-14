@@ -379,4 +379,41 @@ describe('Sprint 5.3 P2 — /api/ai/execute atomic budget flow', () => {
     expect(db.budget_reservations.every((r) => r.status === 'settled')).toBe(true)
     expect(db.ai_usage_limits[0].current_spend).toBe(2)
   })
+
+  it('EXACT budget boundary reserves exactly the remaining funds', async () => {
+    const { client, db } = makeSupabase({
+      // provider estimates 2.007; budget is exactly that -> ok.
+      budget: { organization_id: 'org-1', monthly_budget: 2.007 },
+    })
+    providerMock.mockResolvedValue(successResult({ actualCost: 2.007 }))
+
+    const service = new AIExecutionService(client)
+    const result = await service.execute(baseRequest())
+
+    expect(result.success).toBe(true)
+    expect(db.budget_reservations.length).toBe(1)
+    expect(db.budget_reservations[0].status).toBe('settled')
+    // current_spend equals the full (clamped) hold.
+    expect(Number(db.ai_usage_limits[0].current_spend)).toBeCloseTo(2.007, 6)
+    expect(openHolds(db)).toBe(0)
+  })
+
+  it('provider failure that consumed tokens SETTLES the real cost (no under-billing)', async () => {
+    const { client, db } = makeSupabase({
+      budget: { organization_id: 'org-1', monthly_budget: 10 },
+    })
+    // Provider returns an unsuccessful result BUT reports it consumed 0.5 of
+    // tokens. Releasing the hold here would let the org re-spend money the
+    // API already billed — so the correct financial behavior is to SETTLE.
+    providerMock.mockResolvedValue(successResult({ success: false, actualCost: 0.5, error: 'failed' }))
+
+    const service = new AIExecutionService(client)
+    const result = await service.execute(baseRequest())
+
+    expect(result.success).toBe(false)
+    // Spend booked for the tokens really used; hold resolved (not stranded).
+    expect(db.budget_reservations[0].status).toBe('settled')
+    expect(openHolds(db)).toBe(0)
+    expect(db.ai_usage_limits[0].current_spend).toBeCloseTo(0.5, 6)
+  })
 })

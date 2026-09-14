@@ -44,3 +44,6 @@ lerna-debug.log*
 # Supabase
 .supabase/
 supabase/.temp/
+
+# TypeScript incremental build cache (generated)
+tsconfig.tsbuildinfo
