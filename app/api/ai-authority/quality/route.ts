@@ -110,7 +110,12 @@ export async function GET(request: NextRequest) {
           }
         }),
         existingLinks: linkEdges,
-      }).map((rec) => ({ marketId: market.id, locationName: market.location_name, ...rec }))
+      }).map((rec) => ({
+        marketId: market.id,
+        locationName: market.location_name,
+        serviceName: market.service_name,
+        ...rec,
+      }))
     })
 
     const bySeverity: Record<string, number> = {}

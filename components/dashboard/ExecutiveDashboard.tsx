@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/browser'
 import { Container } from '@/components/Container'
@@ -124,6 +125,12 @@ export function ExecutiveDashboard() {
       <div className="space-y-4">
         <h1 className="text-4xl font-bold">{organization.name}</h1>
         <p className="text-slate-400">Executive Dashboard</p>
+        <Link
+          href={`/headquarters/${organizationId}/authority`}
+          className="inline-block text-sm text-sky-400 hover:text-sky-300"
+        >
+          AI Authority Command Center &rarr;
+        </Link>
       </div>
 
       {/* Quick Stats */}

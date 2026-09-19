@@ -167,6 +167,166 @@ const TEST_TABLES: TableSpec[] = [
     pk: 'organization_id',
     tamper: ['monthly_budget', 999],
   },
+
+  // --- AI Authority Engine (migration 021) ---------------------------------
+  // Only the tables with no mandatory parent FK are listed here, because the
+  // harness seeds rows independently per org. Child tables (markets, queries,
+  // runs, responses, citations) are FK-bound and are covered by the dedicated
+  // authority cascade tests further down, which build the parent chain first.
+  {
+    name: 'authority_locations',
+    seed: (o) => ({ organization_id: o, name: 'RLS City', slug: `rls-city-${o.slice(-4)}` }),
+    tamper: ['name', 'tampered'],
+  },
+  {
+    name: 'authority_services',
+    seed: (o) => ({ organization_id: o, name: 'RLS Service', slug: `rls-service-${o.slice(-4)}` }),
+    tamper: ['name', 'tampered'],
+  },
+  {
+    name: 'authority_engines',
+    seed: (o) => ({
+      organization_id: o,
+      key: 'rls_engine',
+      display_name: 'RLS Engine',
+      capability: 'unsupported',
+    }),
+    tamper: ['display_name', 'tampered'],
+  },
+  {
+    name: 'authority_query_templates',
+    seed: (o) => ({
+      organization_id: o,
+      pattern: `rls template ${o.slice(-4)}`,
+      intent: 'service',
+    }),
+    tamper: ['base_importance', 1],
+  },
+  {
+    name: 'authority_competitors',
+    seed: (o) => ({
+      organization_id: o,
+      name: 'RLS Competitor',
+      normalized_name: `rls competitor ${o.slice(-4)}`,
+      discovery_source: 'ai_answer',
+    }),
+    tamper: ['watch_enabled', false],
+  },
+  {
+    name: 'authority_sources',
+    seed: (o) => ({
+      organization_id: o,
+      domain: `rls-${o.slice(-4)}.example.com`,
+      source_type: 'directory',
+    }),
+    tamper: ['source_type', 'news'],
+  },
+  {
+    name: 'authority_citation_gaps',
+    seed: (o) => ({ organization_id: o, domain: `gap-${o.slice(-4)}.example.com` }),
+    tamper: ['gap_severity', 'high'],
+  },
+  {
+    name: 'authority_evidence',
+    seed: (o) => ({
+      organization_id: o,
+      evidence_type: 'completed_project',
+      title: 'RLS evidence',
+    }),
+    tamper: ['title', 'tampered'],
+  },
+  {
+    name: 'authority_opportunities',
+    seed: (o) => ({
+      organization_id: o,
+      title: 'RLS opportunity',
+      what: 'w',
+      why: 'y',
+    }),
+    tamper: ['title', 'tampered'],
+  },
+  {
+    name: 'authority_recommendation_actions',
+    seed: (o) => ({ organization_id: o, title: 'RLS action' }),
+    tamper: ['title', 'tampered'],
+  },
+  {
+    name: 'authority_experiments',
+    seed: (o) => ({
+      organization_id: o,
+      name: 'RLS experiment',
+      hypothesis: 'h',
+      change_description: 'd',
+    }),
+    tamper: ['name', 'tampered'],
+  },
+  {
+    name: 'authority_crawl_runs',
+    seed: (o) => ({ organization_id: o, site_origin: 'https://example.com' }),
+    tamper: ['status', 'failed'],
+  },
+  {
+    name: 'authority_page_links',
+    seed: (o) => ({
+      organization_id: o,
+      from_url: `https://example.com/a-${o.slice(-4)}`,
+      to_url: `https://example.com/b-${o.slice(-4)}`,
+    }),
+    tamper: ['anchor_text', 'tampered'],
+  },
+  {
+    name: 'authority_technical_issues',
+    seed: (o) => ({
+      organization_id: o,
+      url: `https://example.com/issue-${o.slice(-4)}`,
+      issue_type: 'missing_title',
+    }),
+    tamper: ['severity', 'low'],
+  },
+  {
+    name: 'authority_alerts',
+    seed: (o) => ({
+      organization_id: o,
+      alert_type: 'visibility_drop',
+      title: 'RLS alert',
+      dedupe_key: `rls-alert-${o.slice(-4)}`,
+    }),
+    tamper: ['title', 'tampered'],
+  },
+  {
+    // PK is organization_id: one budget row per tenant.
+    name: 'authority_budgets',
+    seed: (o) => ({ organization_id: o }),
+    pk: 'organization_id',
+    tamper: ['daily_query_limit', 1],
+  },
+  {
+    // provider is constrained to the two genuinely supported integrations, so
+    // both orgs seed the same provider value -- uniqueness is per org, not global.
+    name: 'authority_integrations',
+    seed: (o) => ({
+      organization_id: o,
+      provider: 'google_search_console',
+      display_name: 'RLS Integration',
+    }),
+    tamper: ['display_name', 'tampered'],
+  },
+]
+
+/**
+ * Authority tables that require an FK parent chain before they can be seeded.
+ * Named once here so both the cascade test block and afterAll cleanup agree on
+ * the set -- a table added to one but not the other would silently leak rows.
+ */
+const AUTHORITY_FK_TABLES = [
+  'authority_mentions',
+  'authority_citations',
+  'authority_competitor_snapshots',
+  'authority_competitor_changes',
+  'authority_responses',
+  'authority_query_runs',
+  'authority_queries',
+  'authority_markets',
 ]
 
 // Skip-time decision: vitest `describe.skipIf` keeps the file loadable in CI
@@ -274,8 +434,15 @@ d('LIVE RLS verification (real database)', () => {
     // Cleanup via service role only — every seeded table so repeated runs are
     // idempotent even after a crashed earlier run.
     if (!LIVE_ENV_CONFIGURED) return
+    // The FK-chained authority tables are seeded through buildChain() rather
+    // than TEST_TABLES, so they need an explicit pass. Deleting the parents
+    // would cascade, but doing it directly keeps cleanup independent of the
+    // FK graph and safe to reason about.
     for (const spec of TEST_TABLES) {
       await service.from(spec.name).delete().in('organization_id', [ORG_A, ORG_B])
+    }
+    for (const table of AUTHORITY_FK_TABLES) {
+      await service.from(table).delete().in('organization_id', [ORG_A, ORG_B])
     }
     await service.auth.admin.signOut((userAId || userBId) as string)
   })
@@ -368,6 +535,248 @@ d('LIVE RLS verification (real database)', () => {
       })
     })
   }
+
+  // ========================================================================
+  // AI Authority Engine: FK-chained tables
+  //
+  // These tables cannot be seeded standalone, so the parent chain is built
+  // FIRST via the service client and then the same RLS probes are applied.
+  // This proves isolation on the tables that actually hold the collected
+  // evidence -- markets, queries, runs, responses, mentions, citations --
+  // where a leak would expose another company's competitive intelligence.
+  // ========================================================================
+  d('AI Authority FK-chained isolation', () => {
+    const locationId = (o: string) => `10000000-0000-0000-0000-0000000000${o.slice(-2)}`
+    const serviceId = (o: string) => `20000000-0000-0000-0000-0000000000${o.slice(-2)}`
+    const engineId = (o: string) => `30000000-0000-0000-0000-0000000000${o.slice(-2)}`
+    const queryId = (o: string) => `40000000-0000-0000-0000-0000000000${o.slice(-2)}`
+    const runId = (o: string) => `50000000-0000-0000-0000-0000000000${o.slice(-2)}`
+    const responseId = (o: string) => `60000000-0000-0000-0000-0000000000${o.slice(-2)}`
+    const competitorId = (o: string) => `70000000-0000-0000-0000-0000000000${o.slice(-2)}`
+
+    /** Build the full parent chain for one org. Service client = RLS bypassed. */
+    async function buildChain(org: string) {
+      await service.from('authority_locations').upsert({
+        id: locationId(org),
+        organization_id: org,
+        name: 'Chain City',
+        slug: `chain-city-${org.slice(-4)}`,
+      })
+      await service.from('authority_services').upsert({
+        id: serviceId(org),
+        organization_id: org,
+        name: 'Chain Service',
+        slug: `chain-service-${org.slice(-4)}`,
+      })
+      await service.from('authority_engines').upsert({
+        id: engineId(org),
+        organization_id: org,
+        key: 'chain_engine',
+        display_name: 'Chain Engine',
+        capability: 'unsupported',
+      })
+      await service.from('authority_markets').upsert({
+        id: `80000000-0000-0000-0000-0000000000${org.slice(-2)}`,
+        organization_id: org,
+        location_id: locationId(org),
+        service_id: serviceId(org),
+        location_name: 'Chain City',
+        service_name: 'Chain Service',
+      })
+      await service.from('authority_queries').upsert({
+        id: queryId(org),
+        organization_id: org,
+        raw_text: `chain query ${org.slice(-4)}`,
+        normalized_text: `chain query ${org.slice(-4)}`,
+        intent: 'service',
+      })
+      await service.from('authority_query_runs').upsert({
+        id: runId(org),
+        organization_id: org,
+        query_id: queryId(org),
+        engine_id: engineId(org),
+        run_key: `chain-run-${org.slice(-4)}`,
+        status: 'completed',
+      })
+      await service.from('authority_responses').upsert({
+        id: responseId(org),
+        organization_id: org,
+        run_id: runId(org),
+        query_id: queryId(org),
+        engine_id: engineId(org),
+        engine_key: 'chain_engine',
+        raw_response_text: 'chain response',
+      })
+      await service.from('authority_competitors').upsert({
+        id: competitorId(org),
+        organization_id: org,
+        name: 'Chain Competitor',
+        normalized_name: `chain competitor ${org.slice(-4)}`,
+        discovery_source: 'ai_answer',
+      })
+    }
+
+    beforeAll(async () => {
+      if (!LIVE_ENV_CONFIGURED) return
+      await buildChain(ORG_A)
+      await buildChain(ORG_B)
+    })
+
+    const FK_TABLES: Array<{ name: string; seed: (o: string) => Record<string, unknown>; tamper: [string, unknown] }> = [
+      {
+        name: 'authority_markets',
+        seed: (o) => ({
+          id: `80000000-0000-0000-0000-0000000000${o.slice(-2)}`,
+          organization_id: o,
+          location_id: locationId(o),
+          service_id: serviceId(o),
+          location_name: 'Chain City',
+          service_name: 'Chain Service',
+        }),
+        tamper: ['location_name', 'tampered'],
+      },
+      {
+        name: 'authority_queries',
+        seed: (o) => ({
+          id: queryId(o),
+          organization_id: o,
+          raw_text: `chain query ${o.slice(-4)}`,
+          normalized_text: `chain query ${o.slice(-4)}`,
+          intent: 'service',
+        }),
+        tamper: ['importance', 1],
+      },
+      {
+        name: 'authority_query_runs',
+        seed: (o) => ({
+          id: runId(o),
+          organization_id: o,
+          query_id: queryId(o),
+          engine_id: engineId(o),
+          run_key: `chain-run-${o.slice(-4)}`,
+          status: 'completed',
+        }),
+        tamper: ['status', 'failed'],
+      },
+      {
+        name: 'authority_responses',
+        seed: (o) => ({
+          id: responseId(o),
+          organization_id: o,
+          run_id: runId(o),
+          query_id: queryId(o),
+          engine_id: engineId(o),
+          engine_key: 'chain_engine',
+          raw_response_text: 'chain response',
+        }),
+        tamper: ['raw_response_text', 'tampered'],
+      },
+      {
+        name: 'authority_mentions',
+        seed: (o) => ({
+          organization_id: o,
+          response_id: responseId(o),
+          run_id: runId(o),
+          engine_id: engineId(o),
+          position: 1,
+          business_name: 'Chain Competitor',
+          normalized_business_name: `chain competitor ${o.slice(-4)}`,
+        }),
+        tamper: ['business_name', 'tampered'],
+      },
+      {
+        name: 'authority_citations',
+        seed: (o) => ({
+          organization_id: o,
+          response_id: responseId(o),
+          run_id: runId(o),
+          engine_id: engineId(o),
+          url: `https://example.com/cite-${o.slice(-4)}`,
+          domain: `cite-${o.slice(-4)}.example.com`,
+          source_type: 'directory',
+        }),
+        tamper: ['domain', 'tampered.example.com'],
+      },
+      {
+        name: 'authority_competitor_snapshots',
+        seed: (o) => ({
+          organization_id: o,
+          competitor_id: competitorId(o),
+          snapshot_date: '2099-01-01',
+        }),
+        tamper: ['ai_mention_count', 999],
+      },
+      {
+        name: 'authority_competitor_changes',
+        seed: (o) => ({
+          organization_id: o,
+          competitor_id: competitorId(o),
+          change_type: 'new_page',
+          summary: 'chain change',
+        }),
+        tamper: ['summary', 'tampered'],
+      },
+    ]
+
+    for (const spec of FK_TABLES) {
+      const { name: table, seed: rowFor, tamper } = spec
+
+      it(`${table}: USER_A cannot read, insert into, update, or delete ORG_B`, async () => {
+        const insA = await service.from(table).insert(rowFor(ORG_A))
+        const insB = await service.from(table).insert(rowFor(ORG_B))
+        if (insA.error && insA.error.code !== '23505') {
+          throw new Error(`Seed ORG_A row failed (infra): ${insA.error.message}`)
+        }
+        if (insB.error && insB.error.code !== '23505') {
+          throw new Error(`Seed ORG_B row failed (infra): ${insB.error.message}`)
+        }
+
+        // Read: ORG_B rows must never be visible to USER_A.
+        const { data: seenByA } = await clientA.from(table).select('*')
+        expect(
+          new Set((seenByA ?? []).map((r: any) => r.organization_id)).has(ORG_B)
+        ).toBe(false)
+
+        // Insert into ORG_B must not succeed.
+        const { data: inserted } = await clientA.from(table).insert(rowFor(ORG_B)).select()
+        expect((inserted ?? []).length).toBe(0)
+
+        // Update ORG_B rows must affect nothing.
+        const { data: bRows } = await service
+          .from(table)
+          .select('id')
+          .eq('organization_id', ORG_B)
+        if (bRows?.length) {
+          const [col, val] = tamper
+          const { data: updated } = await clientA
+            .from(table)
+            .update({ [col]: val })
+            .in(
+              'id',
+              bRows.map((r: any) => r.id)
+            )
+            .select()
+          expect((updated ?? []).length).toBe(0)
+
+          // Delete ORG_B rows must affect nothing, and the rows survive.
+          const { data: deleted } = await clientA
+            .from(table)
+            .delete()
+            .in(
+              'id',
+              bRows.map((r: any) => r.id)
+            )
+            .select()
+          expect((deleted ?? []).length).toBe(0)
+          const { data: stillThere } = await service
+            .from(table)
+            .select('id')
+            .eq('organization_id', ORG_B)
+          expect((stillThere ?? []).length).toBe(bRows.length)
+        }
+      })
+    }
+  })
 
   // ========================================================================
   // Unauthenticated access is blocked

@@ -41,6 +41,12 @@ vi.mock('@/lib/jobs/maintenance', async (importOriginal) => {
       // Sprint 5.3 P2: budget reconciliation sweep added to the tick path.
       scheduleBudgetReconciliation = vi.fn(async () => ({ scheduled: 0, errors: [] }))
     },
+    // The tick route also drives AI Authority scheduling. Without this stub the
+    // real scheduler runs against the fake Supabase URL and the test hangs until
+    // the timeout rather than exercising the route's behaviour.
+    AuthorityScheduler: class {
+      scheduleAll = vi.fn(async () => ({ daily: 0, weekly: 0, monthly: 0, errors: [] }))
+    },
   }
 })
 
@@ -226,6 +232,9 @@ describe('POST /api/jobs/tick', () => {
       expect(body.ok).toBe(true)
       expect(body.worker.claimed).toBe(0)
       expect(body.maintenance.approvalSweeps.scheduled).toBe(0)
+      // Authority scheduling is part of the tick contract: one call per tick,
+      // internally bucket-idempotent so a frequent cron cannot over-schedule.
+      expect(body.authority).toEqual({ daily: 0, weekly: 0, monthly: 0, errors: [] })
     } finally {
       restore()
     }
