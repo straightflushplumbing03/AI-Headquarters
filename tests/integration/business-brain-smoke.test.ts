@@ -26,10 +26,14 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 const FAKE = process.env.BUSINESS_BRAIN_SMOKE_FAKE_PROVIDER === '1'
 // Only 'test'/'development'/local app URL are allowed for the fake provider —
 // this same gate is enforced inside getAIProvider (fakeProviderAllowed).
+// @types/node narrows NODE_ENV to 'development' | 'production' | 'test', but
+// the harness also runs with NODE_ENV=smoke. Compare through a widened local so
+// the check reflects the runtime value rather than the declared union.
+const nodeEnv: string | undefined = process.env.NODE_ENV
 const SAFE_FAKE_ENV =
-  process.env.NODE_ENV === 'test' ||
-  process.env.NODE_ENV === 'development' ||
-  process.env.NODE_ENV === 'smoke' ||
+  nodeEnv === 'test' ||
+  nodeEnv === 'development' ||
+  nodeEnv === 'smoke' ||
   /localhost|127\.0\.0\.1|\.test\.|:3\d{3}/.test(process.env.NEXT_PUBLIC_APP_URL ?? '')
 const CONFIGURED = Boolean(FAKE && url && serviceKey)
 
