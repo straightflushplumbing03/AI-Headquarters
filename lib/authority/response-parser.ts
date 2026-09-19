@@ -61,7 +61,13 @@ export interface ParserInput {
 const RECOMMENDATION_MARKERS = [
   'i recommend',
   'we recommend',
+  'i would recommend',
+  'we would recommend',
+  'would recommend',
+  'would suggest',
+  'i suggest',
   'highly recommend',
+  'strongly recommend',
   'recommended',
   'you should call',
   'you could call',
@@ -85,6 +91,32 @@ const RECOMMENDATION_MARKERS = [
   'specialises in',
   'well known for',
 ]
+
+/**
+ * Negation guards.
+ *
+ * "I would not recommend this company" contains the substring "would
+ * recommend". Without this guard a negative review of the subject would be
+ * counted as a recommendation, which inverts the metric it feeds. The guard is
+ * intentionally narrow: it only suppresses a marker when a negation cue appears
+ * immediately before it, so an unrelated "no" elsewhere in the sentence cannot
+ * hide a genuine recommendation.
+ */
+const NEGATION_CUE = /(?:not|never|no longer|cannot|can't|don't|do not|wouldn't|would not|avoid|steer clear of)\s+(?:\w+\s+){0,2}$/
+
+/** True when the line contains explicit recommendation language. */
+export function isRecommendedLine(line: string): boolean {
+  const lower = line.toLowerCase()
+  return RECOMMENDATION_MARKERS.some((marker) => {
+    let from = 0
+    for (;;) {
+      const index = lower.indexOf(marker, from)
+      if (index === -1) return false
+      if (!NEGATION_CUE.test(lower.slice(0, index))) return true
+      from = index + 1
+    }
+  })
+}
 
 /**
  * Legal-entity suffixes and generic words that must not be required in a match
@@ -377,18 +409,16 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-/** True when the line contains explicit recommendation language. */
-export function isRecommendedLine(line: string): boolean {
-  const lower = line.toLowerCase()
-  return RECOMMENDATION_MARKERS.some((m) => lower.includes(m))
-}
-
 function findRecommendationLanguage(lines: string[]): string[] {
   const hits = new Set<string>()
   for (const line of lines) {
     const lower = line.toLowerCase()
     for (const marker of RECOMMENDATION_MARKERS) {
-      if (lower.includes(marker)) hits.add(marker)
+      // A presently-negated marker is not recommendation language.
+      const index = lower.indexOf(marker)
+      if (index === -1) continue
+      if (NEGATION_CUE.test(lower.slice(0, index))) continue
+      hits.add(marker)
     }
   }
   return [...hits]

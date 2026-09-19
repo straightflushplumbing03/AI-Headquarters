@@ -516,6 +516,9 @@ export function extractSitemapUrls(xml: string): string[] {
 export function normalizeOrigin(url: string): string | null {
   try {
     const parsed = new URL(url)
+    // The crawler fetches these origins, so anything that is not http(s) must be
+    // refused here rather than reaching the fetch layer.
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
     return `${parsed.protocol}//${parsed.host}`
   } catch {
     return null

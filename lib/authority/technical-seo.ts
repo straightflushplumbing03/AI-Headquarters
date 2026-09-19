@@ -21,6 +21,7 @@ export type TechnicalIssueType =
   | 'duplicate_title'
   | 'duplicate_meta_description'
   | 'missing_title'
+  | 'missing_meta_description'
   | 'missing_h1'
   | 'missing_schema'
   | 'invalid_schema'
@@ -113,9 +114,12 @@ export function auditPageMetadata(pages: PageForAudit[]): TechnicalFinding[] {
     }
 
     if (!page.meta_description || page.meta_description.trim().length === 0) {
+      // A missing description is its own problem. Reporting it as a duplicate
+      // would mislabel it and inflate the duplicate count, which is a separate
+      // and more serious finding.
       findings.push({
         url: page.url,
-        issueType: 'duplicate_meta_description',
+        issueType: 'missing_meta_description',
         severity: 'low',
         detail: 'Page has no meta description.',
         recommendation: 'Add a unique, accurate meta description.',

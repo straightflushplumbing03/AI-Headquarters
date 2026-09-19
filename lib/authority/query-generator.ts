@@ -71,6 +71,34 @@ function problemPhrase(service: AuthorityService, index: number): string {
   return phrases[index % phrases.length]
 }
 
+/** Placeholders this generator knows how to fill. */
+const KNOWN_PLACEHOLDERS = ['city', 'service', 'problem'] as const
+
+/**
+ * Matches any brace-delimited token, including unknown ones, so a template with
+ * a placeholder we cannot fill is detected instead of being emitted verbatim.
+ */
+const ANY_PLACEHOLDER = /\{([a-z_]+)\}/gi
+
+function hasUnfillablePlaceholder(pattern: string): boolean {
+  const known: readonly string[] = KNOWN_PLACEHOLDERS
+  return [...pattern.matchAll(ANY_PLACEHOLDER)].some(
+    (match) => !known.includes(match[1].toLowerCase())
+  )
+}
+
+function interpolateTemplate(
+  pattern: string,
+  location: AuthorityLocation,
+  service: AuthorityService,
+  problemIndex: number
+): string {
+  return pattern
+    .replace(/\{city\}/gi, location.name)
+    .replace(/\{service\}/gi, servicePhrase(service))
+    .replace(/\{problem\}/gi, problemPhrase(service, problemIndex))
+}
+
 /** Importance is adjusted by season when a template declares a season window. */
 function seasonalImportance(base: number, seasonMonths: number[] | null, month: number): number {
   if (!seasonMonths || seasonMonths.length === 0) return base
@@ -118,6 +146,11 @@ export function generateQueries(input: GenerationInput): GeneratedQuery[] {
     if (!location || !service) continue
 
     for (const template of activeTemplates) {
+      // A template with a placeholder this generator does not know would emit a
+      // query containing the literal brace text, which costs real provider spend
+      // and corrupts per-market metrics. Skip it rather than monitor nonsense.
+      if (hasUnfillablePlaceholder(template.pattern)) continue
+
       // Problem-intent templates cycle through the service's problem phrases so
       // one template yields several genuinely different customer questions.
       const problemVariants =
@@ -126,10 +159,7 @@ export function generateQueries(input: GenerationInput): GeneratedQuery[] {
           : 1
 
       for (let i = 0; i < problemVariants; i++) {
-        const rawText = template.pattern
-          .replace(/\{city\}/g, location.name)
-          .replace(/\{service\}/g, servicePhrase(service))
-          .replace(/\{problem\}/g, problemPhrase(service, i))
+        const rawText = interpolateTemplate(template.pattern, location, service, i)
 
         drafts.push({
           rawText,
