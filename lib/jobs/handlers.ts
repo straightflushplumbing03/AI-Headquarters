@@ -14,29 +14,39 @@
  * - All DB access uses the worker's Supabase client so RLS still applies.
  */
 
-import { SupabaseClient } from '@supabase/supabase-js'
 import { EmbeddingService } from '@/lib/knowledge/embedding-service'
 import { BudgetReservationService } from '@/lib/sprint3/budget-reservation'
 import { logFinancial } from '@/lib/ai/financial-logger'
+import { PermanentJobError } from './errors'
+import type { JobContext, JobHandler } from './errors'
+// AI Authority handlers are registered into THIS table, so there is exactly one
+// job engine and one place that resolves a job type. The authority modules
+// import PermanentJobError from './errors' (not from here), which is what keeps
+// this a one-directional dependency.
+import {
+  authorityQueryExecution,
+  authorityResponseParsing,
+  authorityCompetitorMonitor,
+  authorityWebsiteCrawl,
+  authoritySearchConsoleSync,
+  authorityGbpSync,
+  authorityScoring,
+  authorityRecommendationGeneration,
+  authorityExperimentEvaluation,
+  authorityDataQualitySweep,
+} from '@/lib/authority/jobs'
 import type {
   BackgroundJobType,
   BudgetReconciliationPayload,
-  ClaimedJob,
   EmbeddingBackfillPayload,
   ExecuteActionPayload,
 } from './types'
 
-export class PermanentJobError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'PermanentJobError'
-  }
-}
-
-export type JobHandler = (job: ClaimedJob, ctx: JobContext) => Promise<Record<string, unknown>>
-export interface JobContext {
-  supabase: SupabaseClient
-}
+// Re-exported for backwards compatibility: existing call sites and tests import
+// these from '@/lib/jobs/handlers'. The definitions live in './errors' so that
+// domain handler modules can depend on them without importing this registry.
+export { PermanentJobError }
+export type { JobContext, JobHandler }
 
 // ---------------------------------------------------------------------------
 // 1. approval_expiration_sweep
@@ -216,11 +226,24 @@ export const budgetReconciliationSweep: JobHandler = async (job, ctx) => {
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
+// AI Authority Engine handlers live in lib/authority/jobs.ts so the domain
+// stays self-contained; they are registered into this same dispatch table, so
+// there is exactly ONE job engine and ONE place that resolves a job type.
 export const JOB_HANDLERS: Record<BackgroundJobType, JobHandler> = {
   approval_expiration_sweep: approvalExpirationSweep,
   embedding_backfill: embeddingBackfill,
   execute_autonomous_action: executeAutonomousAction,
   budget_reconciliation_sweep: budgetReconciliationSweep,
+  authority_query_execution: authorityQueryExecution,
+  authority_response_parsing: authorityResponseParsing,
+  authority_competitor_monitor: authorityCompetitorMonitor,
+  authority_website_crawl: authorityWebsiteCrawl,
+  authority_search_console_sync: authoritySearchConsoleSync,
+  authority_gbp_sync: authorityGbpSync,
+  authority_scoring: authorityScoring,
+  authority_recommendation_generation: authorityRecommendationGeneration,
+  authority_experiment_evaluation: authorityExperimentEvaluation,
+  authority_data_quality_sweep: authorityDataQualitySweep,
 }
 
 export function getHandler(jobType: string): JobHandler | undefined {

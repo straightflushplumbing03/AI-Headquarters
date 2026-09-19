@@ -18,7 +18,9 @@
  *
  * WHAT ONE TICK DOES:
  *  1. Schedules maintenance jobs (approval sweeps, embedding backfills,
- *     budget reconciliation) — idempotent per time bucket.
+ *     budget reconciliation) and AI Authority jobs (daily collection,
+ *     weekly scoring/recommendations, monthly crawl/integration sync) —
+ *     idempotent per time bucket, so a frequent cron cannot over-schedule.
  *  2. Claims and processes one worker batch (default 5 jobs).
  *
  * NOTE ON USER-SCOPED ACCESS: handlers run under the anon-key client, so RLS
@@ -32,7 +34,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { BackgroundWorker } from '@/lib/jobs/worker'
-import { MaintenanceScheduler } from '@/lib/jobs/maintenance'
+import { MaintenanceScheduler, AuthorityScheduler } from '@/lib/jobs/maintenance'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -72,12 +74,17 @@ export async function POST(request: NextRequest) {
   })
 
   const scheduler = new MaintenanceScheduler(client)
+  const authorityScheduler = new AuthorityScheduler(client)
   const worker = new BackgroundWorker(client, { jobTimeoutMs: 45_000 })
 
-  const [approvalSweeps, embeddingBackfills, budgetReconciliation] = await Promise.all([
+  const [approvalSweeps, embeddingBackfills, budgetReconciliation, authority] = await Promise.all([
     scheduler.scheduleApprovalSweeps(),
     scheduler.scheduleEmbeddingBackfills(),
     scheduler.scheduleBudgetReconciliation(),
+    // Authority scheduling is bucket-idempotent, so running the tick every
+    // minute still produces at most one collection per day, one scoring pass
+    // per week, and one crawl per month.
+    authorityScheduler.scheduleAll(),
   ])
 
   const batch = await worker.processBatch()
@@ -85,6 +92,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     ok: true,
     maintenance: { approvalSweeps, embeddingBackfills, budgetReconciliation },
+    authority,
     worker: batch,
   })
 }

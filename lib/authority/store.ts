@@ -1172,6 +1172,421 @@ export class AuthorityStore {
   }
 
   // -------------------------------------------------------------------------
+  // Website crawl graph
+  // -------------------------------------------------------------------------
+
+  /**
+   * Upsert a crawled page into the PRE-EXISTING `website_pages` table.
+   *
+   * Reuses phase 4's table rather than creating a competing one. Crawl-specific
+   * columns were added additively in migration 021; the phase-4 columns this
+   * does not own (rank_position, search_impressions, ...) are left untouched so
+   * existing SEO logic keeps working.
+   */
+  async upsertCrawledPage(row: Record<string, unknown>): Promise<boolean> {
+    const org = requireOrg(row.organization_id as string)
+
+    const { data: existing } = await this.supabase
+      .from('website_pages')
+      .select('id')
+      .eq('organization_id', org)
+      .eq('url', row.url as string)
+      .maybeSingle()
+
+    if (existing?.id) {
+      const { error } = await this.supabase
+        .from('website_pages')
+        .update({ ...row, updated_at: new Date().toISOString() })
+        .eq('organization_id', org)
+        .eq('id', existing.id)
+      if (error) {
+        console.error(`[authority] page update failed for ${row.url}: ${error.message}`)
+        return false
+      }
+      return true
+    }
+
+    const { error } = await this.supabase.from('website_pages').insert(row)
+    if (error) {
+      console.error(`[authority] page insert failed for ${row.url}: ${error.message}`)
+      return false
+    }
+    return true
+  }
+
+  /** Upsert an internal-link edge. Idempotent on the schema's unique key. */
+  async upsertPageLink(row: Record<string, unknown>): Promise<boolean> {
+    const org = requireOrg(row.organization_id as string)
+    const { error } = await this.supabase
+      .from('authority_page_links')
+      .upsert(row, {
+        onConflict: 'organization_id,from_url,to_url,anchor_text',
+        ignoreDuplicates: true,
+      })
+    if (error) {
+      console.error(`[authority] page link upsert failed: ${error.message}`)
+      return false
+    }
+    void org
+    return true
+  }
+
+  async listPageLinks(organizationId: string, limit = 5000) {
+    const org = requireOrg(organizationId)
+    const { data, error } = await this.supabase
+      .from('authority_page_links')
+      .select('*')
+      .eq('organization_id', org)
+      .limit(limit)
+    if (error) throw new Error(`listPageLinks failed: ${error.message}`)
+    return data ?? []
+  }
+
+  async listPages(organizationId: string, limit = 2000) {
+    const org = requireOrg(organizationId)
+    const { data, error } = await this.supabase
+      .from('website_pages')
+      .select('*')
+      .eq('organization_id', org)
+      .limit(limit)
+    if (error) throw new Error(`listPages failed: ${error.message}`)
+    return data ?? []
+  }
+
+  async createCrawlRun(row: Record<string, unknown>): Promise<string | null> {
+    const org = requireOrg(row.organization_id as string)
+    const { data, error } = await this.supabase
+      .from('authority_crawl_runs')
+      .insert(row)
+      .select('id')
+      .single()
+    if (error) {
+      console.error(`[authority] crawl run insert failed: ${error.message}`)
+      return null
+    }
+    void org
+    return data?.id ?? null
+  }
+
+  /** Upsert a technical issue. Idempotent on (org, url, issue_type). */
+  async upsertTechnicalIssue(row: Record<string, unknown>): Promise<boolean> {
+    const org = requireOrg(row.organization_id as string)
+    const { error } = await this.supabase
+      .from('authority_technical_issues')
+      .upsert(row, {
+        onConflict: 'organization_id,url,issue_type',
+        ignoreDuplicates: false,
+      })
+    if (error) {
+      console.error(`[authority] technical issue upsert failed: ${error.message}`)
+      return false
+    }
+    void org
+    return true
+  }
+
+  async listTechnicalIssues(organizationId: string, opts?: { status?: string; limit?: number }) {
+    const org = requireOrg(organizationId)
+    let query = this.supabase
+      .from('authority_technical_issues')
+      .select('*')
+      .eq('organization_id', org)
+      .order('detected_at', { ascending: false })
+      .limit(opts?.limit ?? 500)
+
+    if (opts?.status) query = query.eq('status', opts.status)
+
+    const { data, error } = await query
+    if (error) throw new Error(`listTechnicalIssues failed: ${error.message}`)
+    return data ?? []
+  }
+
+  // -------------------------------------------------------------------------
+  // Integrations
+  // -------------------------------------------------------------------------
+
+  async listIntegrations(organizationId: string) {
+    const org = requireOrg(organizationId)
+    const { data, error } = await this.supabase
+      .from('authority_integrations')
+      .select('*')
+      .eq('organization_id', org)
+    if (error) throw new Error(`listIntegrations failed: ${error.message}`)
+    return data ?? []
+  }
+
+  async getIntegration(organizationId: string, provider: string) {
+    const org = requireOrg(organizationId)
+    const { data, error } = await this.supabase
+      .from('authority_integrations')
+      .select('*')
+      .eq('organization_id', org)
+      .eq('provider', provider)
+      .maybeSingle()
+    if (error) throw new Error(`getIntegration failed: ${error.message}`)
+    return data ?? null
+  }
+
+  async updateIntegration(organizationId: string, provider: string, patch: Record<string, unknown>) {
+    const org = requireOrg(organizationId)
+    const { error } = await this.supabase
+      .from('authority_integrations')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('organization_id', org)
+      .eq('provider', provider)
+    if (error) throw new Error(`updateIntegration failed: ${error.message}`)
+  }
+
+  /** Upsert search-console metrics. Idempotent on the full natural key. */
+  async upsertSearchMetric(row: Record<string, unknown>): Promise<boolean> {
+    requireOrg(row.organization_id as string)
+    const { error } = await this.supabase
+      .from('authority_search_metrics')
+      .upsert(row, {
+        onConflict: 'organization_id,provider,metric_date,query_text,page_url,country,device',
+        ignoreDuplicates: false,
+      })
+    if (error) {
+      console.error(`[authority] search metric upsert failed: ${error.message}`)
+      return false
+    }
+    return true
+  }
+
+  async upsertGbpMetric(row: Record<string, unknown>): Promise<boolean> {
+    requireOrg(row.organization_id as string)
+    const { error } = await this.supabase
+      .from('authority_gbp_metrics')
+      .upsert(row, {
+        onConflict: 'organization_id,metric_date,location_ref',
+        ignoreDuplicates: false,
+      })
+    if (error) {
+      console.error(`[authority] GBP metric upsert failed: ${error.message}`)
+      return false
+    }
+    return true
+  }
+
+  // -------------------------------------------------------------------------
+  // Opportunities, recommendations, experiments
+  // -------------------------------------------------------------------------
+
+  /**
+   * Upsert a scored opportunity.
+   *
+   * Idempotent on (organization_id, market_id, category, title), so a weekly
+   * regeneration refreshes scores and explanations in place rather than
+   * creating a duplicate opportunity for the same finding.
+   */
+  async upsertOpportunity(row: Record<string, unknown>): Promise<string | null> {
+    const org = requireOrg(row.organization_id as string)
+    const { data, error } = await this.supabase
+      .from('authority_opportunities')
+      .upsert(
+        { ...row, updated_at: new Date().toISOString() },
+        { onConflict: 'organization_id,market_id,category,title', ignoreDuplicates: false }
+      )
+      .select('id')
+      .single()
+
+    if (error) {
+      console.error(`[authority] opportunity upsert failed: ${error.message}`)
+      return null
+    }
+    void org
+    return data?.id ?? null
+  }
+
+  async listOpportunities(
+    organizationId: string,
+    opts?: { status?: string; limit?: number }
+  ): Promise<Array<Record<string, unknown>>> {
+    const org = requireOrg(organizationId)
+    let query = this.supabase
+      .from('authority_opportunities')
+      .select('*')
+      .eq('organization_id', org)
+      .order('opportunity_score', { ascending: false })
+      .limit(opts?.limit ?? 200)
+
+    if (opts?.status) query = query.eq('status', opts.status)
+
+    const { data, error } = await query
+    if (error) throw new Error(`listOpportunities failed: ${error.message}`)
+    return data ?? []
+  }
+
+  async updateOpportunity(organizationId: string, opportunityId: string, patch: Record<string, unknown>) {
+    const org = requireOrg(organizationId)
+    const { error } = await this.supabase
+      .from('authority_opportunities')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('organization_id', org)
+      .eq('id', opportunityId)
+    if (error) throw new Error(`updateOpportunity failed: ${error.message}`)
+  }
+
+  /** Assign priority ranks by descending score. Deterministic and explainable. */
+  async rankOpportunities(organizationId: string): Promise<number> {
+    const opportunities = await this.listOpportunities(organizationId, {
+      status: 'new',
+      limit: 500,
+    })
+    let ranked = 0
+    for (let i = 0; i < opportunities.length; i++) {
+      const id = opportunities[i].id as string
+      await this.updateOpportunity(organizationId, id, { priority_rank: i + 1, status: 'prioritized' })
+      ranked += 1
+    }
+    return ranked
+  }
+
+  /** Create the phase-5 recommendation that the authority actions hang off. */
+  async insertRecommendation(row: Record<string, unknown>): Promise<string | null> {
+    const org = requireOrg(row.organization_id as string)
+    const { data, error } = await this.supabase
+      .from('recommendations')
+      .insert(row)
+      .select('id')
+      .single()
+    if (error) {
+      console.error(`[authority] recommendation insert failed: ${error.message}`)
+      return null
+    }
+    void org
+    return data?.id ?? null
+  }
+
+  async upsertRecommendationAction(row: Record<string, unknown>): Promise<string | null> {
+    requireOrg(row.organization_id as string)
+    const { data, error } = await this.supabase
+      .from('authority_recommendation_actions')
+      .upsert(
+        { ...row, updated_at: new Date().toISOString() },
+        { onConflict: 'organization_id,opportunity_id,step_order', ignoreDuplicates: false }
+      )
+      .select('id')
+      .single()
+    if (error) {
+      console.error(`[authority] recommendation action upsert failed: ${error.message}`)
+      return null
+    }
+    return data?.id ?? null
+  }
+
+  async listRecommendationActions(organizationId: string, opts?: { status?: string; limit?: number }) {
+    const org = requireOrg(organizationId)
+    let query = this.supabase
+      .from('authority_recommendation_actions')
+      .select('*')
+      .eq('organization_id', org)
+      .order('step_order', { ascending: true })
+      .limit(opts?.limit ?? 200)
+
+    if (opts?.status) query = query.eq('status', opts.status)
+
+    const { data, error } = await query
+    if (error) throw new Error(`listRecommendationActions failed: ${error.message}`)
+    return data ?? []
+  }
+
+  async updateRecommendationAction(
+    organizationId: string,
+    actionId: string,
+    patch: Record<string, unknown>
+  ) {
+    const org = requireOrg(organizationId)
+    const { error } = await this.supabase
+      .from('authority_recommendation_actions')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('organization_id', org)
+      .eq('id', actionId)
+    if (error) throw new Error(`updateRecommendationAction failed: ${error.message}`)
+  }
+
+  async createExperiment(row: Record<string, unknown>) {
+    const org = requireOrg(row.organization_id as string)
+    const { data, error } = await this.supabase
+      .from('authority_experiments')
+      .insert(row)
+      .select('*')
+      .single()
+    if (error) {
+      console.error(`[authority] experiment insert failed: ${error.message}`)
+      return null
+    }
+    void org
+    return data
+  }
+
+  async listExperiments(organizationId: string, status?: string) {
+    const org = requireOrg(organizationId)
+    let query = this.supabase
+      .from('authority_experiments')
+      .select('*')
+      .eq('organization_id', org)
+      .order('created_at', { ascending: false })
+      .limit(200)
+    if (status) query = query.eq('status', status)
+    const { data, error } = await query
+    if (error) throw new Error(`listExperiments failed: ${error.message}`)
+    return data ?? []
+  }
+
+  async updateExperiment(organizationId: string, experimentId: string, patch: Record<string, unknown>) {
+    const org = requireOrg(organizationId)
+    const { error } = await this.supabase
+      .from('authority_experiments')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('organization_id', org)
+      .eq('id', experimentId)
+    if (error) throw new Error(`updateExperiment failed: ${error.message}`)
+  }
+
+  async insertExperimentResult(row: Record<string, unknown>): Promise<boolean> {
+    requireOrg(row.organization_id as string)
+    const { error } = await this.supabase.from('authority_experiment_results').insert(row)
+    if (error) {
+      if (error.code === '23505') return false
+      console.error(`[authority] experiment result insert failed: ${error.message}`)
+      return false
+    }
+    return true
+  }
+
+  async listExperimentResults(organizationId: string, experimentId: string) {
+    const org = requireOrg(organizationId)
+    const { data, error } = await this.supabase
+      .from('authority_experiment_results')
+      .select('*')
+      .eq('organization_id', org)
+      .eq('experiment_id', experimentId)
+      .order('measured_at', { ascending: true })
+    if (error) throw new Error(`listExperimentResults failed: ${error.message}`)
+    return (data ?? []) as Array<{
+      phase: 'before' | 'during' | 'after'
+      metrics: Record<string, unknown>
+      measured_at: string
+    }>
+  }
+
+  async upsertActionResult(row: Record<string, unknown>): Promise<boolean> {
+    requireOrg(row.organization_id as string)
+    const { error } = await this.supabase
+      .from('authority_action_results')
+      .upsert(row, {
+        onConflict: 'organization_id,recommendation_action_id,measurement_window_days',
+        ignoreDuplicates: false,
+      })
+    if (error) {
+      console.error(`[authority] action result upsert failed: ${error.message}`)
+      return false
+    }
+    return true
+  }
+
+  // -------------------------------------------------------------------------
   // Audit (reuses the existing table and helper conventions)
   // -------------------------------------------------------------------------
 

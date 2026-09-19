@@ -18,6 +18,17 @@ export type BackgroundJobType =
   | 'embedding_backfill'
   | 'execute_autonomous_action'
   | 'budget_reconciliation_sweep'
+  // AI Authority Engine (see lib/authority/*)
+  | 'authority_query_execution'
+  | 'authority_response_parsing'
+  | 'authority_competitor_monitor'
+  | 'authority_website_crawl'
+  | 'authority_search_console_sync'
+  | 'authority_gbp_sync'
+  | 'authority_scoring'
+  | 'authority_recommendation_generation'
+  | 'authority_experiment_evaluation'
+  | 'authority_data_quality_sweep'
 
 export interface ApprovalSweepPayload {
   // Expire every pending approval whose response_deadline has passed for the
@@ -46,6 +57,70 @@ export type BackgroundJobPayload =
   | EmbeddingBackfillPayload
   | ExecuteActionPayload
   | BudgetReconciliationPayload
+  | AuthorityQueryExecutionPayload
+  | AuthorityResponseParsingPayload
+  | AuthorityCompetitorMonitorPayload
+  | AuthorityWebsiteCrawlPayload
+  | AuthorityScoringPayload
+  | AuthorityRecommendationGenerationPayload
+  | AuthorityExperimentEvaluationPayload
+  | AuthorityDataQualityPayload
+  | AuthorityIntegrationSyncPayload
+
+/**
+ * AI Authority job payload shapes.
+ *
+ * Re-declared here (rather than imported from lib/authority/types) so the job
+ * layer stays decoupled from the authority domain, mirroring how the existing
+ * payloads are declared. The authority module's own payload interfaces are
+ * structurally identical.
+ */
+export interface AuthorityQueryExecutionPayload {
+  limit?: number
+  marketId?: string
+  engineKey?: string
+}
+
+export interface AuthorityResponseParsingPayload {
+  limit?: number
+  reparse?: boolean
+}
+
+export interface AuthorityCompetitorMonitorPayload {
+  windowDays?: number
+  snapshotDate?: string
+}
+
+export interface AuthorityWebsiteCrawlPayload {
+  siteOrigin?: string
+  maxPages?: number
+  rateLimitMs?: number
+}
+
+export interface AuthorityScoringPayload {
+  windowDays?: number
+  marketId?: string
+}
+
+export interface AuthorityRecommendationGenerationPayload {
+  limit?: number
+  marketId?: string
+  rescore?: boolean
+}
+
+export interface AuthorityExperimentEvaluationPayload {
+  experimentId?: string
+}
+
+export interface AuthorityDataQualityPayload {
+  limit?: number
+}
+
+export interface AuthorityIntegrationSyncPayload {
+  startDate?: string
+  endDate?: string
+  days?: number
+}
 
 export interface BackgroundJobRow {
   id: string
