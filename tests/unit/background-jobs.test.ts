@@ -100,7 +100,7 @@ function makeClient(overrides: { rpc?: Record<string, (...args: any[]) => any> }
 import { BackgroundJobQueue } from '@/lib/jobs/queue'
 import { BackgroundWorker } from '@/lib/jobs/worker'
 import { PermanentJobError, JOB_HANDLERS } from '@/lib/jobs/handlers'
-import { MaintenanceScheduler, SWEEP_INTERVAL_MS } from '@/lib/jobs/maintenance'
+import { MaintenanceScheduler, AuthorityScheduler, SWEEP_INTERVAL_MS } from '@/lib/jobs/maintenance'
 import type { ClaimedJob } from '@/lib/jobs/types'
 
 const JOB: ClaimedJob = {
@@ -418,5 +418,75 @@ describe('MaintenanceScheduler', () => {
     const res = await s.scheduleApprovalSweeps()
     expect(res.scheduled).toBe(0)
     expect(res.errors[0]).toMatch(/rls denied/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// AuthorityScheduler -- 6:00 AM Pacific daily gate
+// ---------------------------------------------------------------------------
+describe('AuthorityScheduler daily cadence', () => {
+  // 2026-06-15 is PDT (UTC-7): 12:00Z = 05:00 PT (gated), 13:00Z = 06:00 PT (open).
+  const beforeGate = new Date('2026-06-15T12:00:00Z')
+  const afterGate = new Date('2026-06-15T13:00:00Z')
+
+  it('schedules nothing before 06:00 Pacific', async () => {
+    const { client, tables } = makeClient()
+    tables['authority_markets'].state.listResult = {
+      data: [{ organization_id: 'org-1' }],
+      error: null,
+    }
+    tables['background_jobs'].state.upsertResult = { data: [{ id: 'j' }], error: null }
+
+    const res = await new AuthorityScheduler(client).scheduleDaily(beforeGate)
+    expect(res.scheduled).toBe(0)
+    expect(res.errors).toEqual([])
+  })
+
+  it('schedules the daily set (including the briefing) at or after 06:00 Pacific', async () => {
+    const { client, tables } = makeClient()
+    tables['authority_markets'].state.listResult = {
+      data: [{ organization_id: 'org-1' }],
+      error: null,
+    }
+    tables['background_jobs'].state.upsertResult = { data: [{ id: 'j' }], error: null }
+
+    const res = await new AuthorityScheduler(client).scheduleDaily(afterGate)
+    // query + parse + competitor + briefing = 4 jobs for one org.
+    expect(res.scheduled).toBe(4)
+    expect(res.errors).toEqual([])
+
+    // The daily briefing must be one of the enqueued job types.
+    const upserted = (tables['background_jobs'].builder.upsert as any).mock.calls
+      .map((c: any[]) => c[0])
+      .flat()
+    expect(upserted.some((r: any) => r.job_type === 'authority_daily_briefing')).toBe(true)
+  })
+
+  it('gates the weekly cadence on the same 06:00 Pacific rule', async () => {
+    const { client, tables } = makeClient()
+    tables['authority_markets'].state.listResult = {
+      data: [{ organization_id: 'org-1' }],
+      error: null,
+    }
+    tables['background_jobs'].state.upsertResult = { data: [{ id: 'j' }], error: null }
+
+    const gated = await new AuthorityScheduler(client).scheduleWeekly(beforeGate)
+    expect(gated.scheduled).toBe(0)
+  })
+
+  it('uses a per-day idempotency bucket for the briefing', async () => {
+    const { client, tables } = makeClient()
+    tables['authority_markets'].state.listResult = {
+      data: [{ organization_id: 'org-1' }],
+      error: null,
+    }
+    tables['background_jobs'].state.upsertResult = { data: [{ id: 'j' }], error: null }
+
+    await new AuthorityScheduler(client).scheduleDaily(afterGate)
+    const upserted = (tables['background_jobs'].builder.upsert as any).mock.calls
+      .map((c: any[]) => c[0])
+      .flat()
+    const briefing = upserted.find((r: any) => r.job_type === 'authority_daily_briefing')
+    expect(briefing?.idempotency_key).toMatch(/^authority-briefing-\d{4}-\d{2}-\d{2}$/)
   })
 })
