@@ -17,7 +17,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { PermanentJobError, type JobHandler } from '@/lib/jobs/errors'
-import { AuthorityOrchestrator, subjectDomainList } from '@/lib/authority/orchestrator'
+import { AuthorityOrchestrator, AuthorityOverviewService, subjectDomainList } from '@/lib/authority/orchestrator'
 import { SearchConsoleIntegration, GoogleBusinessProfileIntegration } from '@/lib/authority/integrations'
 import { AuthorityStore } from '@/lib/authority/store'
 import { AuthorityQueryRunner } from '@/lib/authority/query-runner'
@@ -31,6 +31,7 @@ import {
 } from '@/lib/authority/data-quality'
 import type {
   AuthorityCompetitorMonitorPayload,
+  AuthorityDailyBriefingPayload,
   AuthorityDataQualityPayload,
   AuthorityIntegrationSyncPayload,
   AuthorityQueryExecutionPayload,
@@ -374,6 +375,48 @@ export const authorityDataQualitySweep: JobHandler = async (job, ctx) => {
       severity: i.severity,
       detail: i.detail.slice(0, 300),
     })),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Daily business summary
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the concise daily business summary.
+ *
+ * A read model: it makes no external calls and spends nothing. It states what
+ * was observed and what is unavailable, so an unconfigured deployment records
+ * an honest empty briefing instead of a fabricated one. It is also logged to
+ * the audit trail so the day's summary is retained even before a UI view is
+ * opened.
+ */
+export const authorityDailyBriefing: JobHandler = async (job, ctx) => {
+  const { organizationId, store } = buildContext(job, ctx.supabase)
+  const payload = (job.payload ?? {}) as AuthorityDailyBriefingPayload
+
+  const briefing = await new AuthorityOverviewService(ctx.supabase).buildDailyBriefing(
+    organizationId,
+    clampWindow(payload.windowDays)
+  )
+
+  await store.logAudit({
+    organizationId,
+    userId: null,
+    action: 'ai_authority.daily_briefing',
+    resource: 'authority_daily_briefing',
+    details: briefing.headline,
+    metadata: {
+      observed: briefing.observed,
+      generatedAt: briefing.generatedAt,
+    },
+  })
+
+  return {
+    headline: briefing.headline,
+    observed: briefing.observed,
+    unavailable: briefing.unavailable,
+    generatedAt: briefing.generatedAt,
   }
 }
 

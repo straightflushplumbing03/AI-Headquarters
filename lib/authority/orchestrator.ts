@@ -823,6 +823,96 @@ export class AuthorityOverviewService {
       }),
     }
   }
+
+  /**
+   * Concise daily business summary.
+   *
+   * This is a READ MODEL: it makes no external calls and costs nothing. Its job
+   * is to state, without embellishment, what the system actually observed today
+   * and what remains unavailable -- so an unconfigured deployment produces an
+   * honest "no data collected" briefing rather than a fabricated one.
+   */
+  async buildDailyBriefing(organizationId: string, windowDays = 30) {
+    const [markets, scores, opportunities, alerts, engines, integrations, competitors, issues] =
+      await Promise.all([
+        this.store.listMarkets(organizationId),
+        this.store.listLatestScores(organizationId, 500),
+        this.store.listOpportunities(organizationId, { limit: 200 }),
+        this.store.listAlerts(organizationId, { limit: 200 }),
+        this.store.listEngines(organizationId),
+        this.store.listIntegrations(organizationId),
+        this.store.listCompetitors(organizationId),
+        this.store.listTechnicalIssues(organizationId, { status: 'open', limit: 200 }),
+      ])
+
+    const measured = scores.filter((s) => num((s as Record<string, unknown>).response_count) > 0)
+    const observedVisibility = measured.length > 0
+    const averageVisibility = observedVisibility
+      ? round2(
+          measured.reduce((acc, s) => acc + num((s as Record<string, unknown>).internal_visibility_score), 0) /
+            measured.length
+        )
+      : null
+
+    const openOpportunities = opportunities.filter((o) =>
+      ['open', 'prioritized', 'in_progress'].includes(String((o as Record<string, unknown>).status))
+    )
+    const highPriority = openOpportunities.filter(
+      (o) => num((o as Record<string, unknown>).priority_score) >= 70
+    )
+    const newAlerts = alerts.filter((a) => String((a as Record<string, unknown>).status) === 'new')
+
+    const configuredEngines = engines.filter((e) => {
+      const adapter = EngineAdapterRegistry.get(String(e.key))
+      return adapter ? adapter.capability() === 'supported' : String(e.capability) === 'supported'
+    })
+
+    const connectedIntegrations = integrations.filter((i) => String(i.status) === 'connected')
+    const unconfiguredIntegrations = integrations.filter((i) => String(i.status) !== 'connected')
+
+    const headline = !observedVisibility
+      ? 'No AI-visibility data has been collected yet. ' +
+        (configuredEngines.length === 0
+          ? 'No AI engine credential is configured, so no answers could be collected. This is an honest empty state, not zero visibility.'
+          : 'Engines are configured but no answers have been collected yet.')
+      : `${measured.length} of ${markets.length} markets measured; average internal visibility ${averageVisibility}.`
+
+    return {
+      generatedAt: new Date().toISOString(),
+      windowDays,
+      headline,
+      metricDisclosure:
+        'Business Brain internal metrics derived only from answers this system collected. ' +
+        'They are not any AI platform ranking formula.',
+      observed: {
+        marketsTotal: markets.length,
+        marketsMeasured: measured.length,
+        averageVisibility,
+        opportunitiesOpen: openOpportunities.length,
+        opportunitiesHighPriority: highPriority.length,
+        alertsNew: newAlerts.length,
+        competitorsTracked: competitors.length,
+        technicalIssuesOpen: issues.length,
+      },
+      unavailable: {
+        // Named explicitly so an empty dashboard is never mistaken for zero performance.
+        enginesConfigured: configuredEngines.map((e) => String(e.key)),
+        enginesUnconfigured: engines
+          .filter((e) => !configuredEngines.includes(e))
+          .map((e) => ({ key: String(e.key), capability: String(e.capability) })),
+        integrationsConnected: connectedIntegrations.map((i) => String(i.provider)),
+        integrationsUnconfigured: unconfiguredIntegrations.map((i) => ({
+          provider: String(i.provider),
+          missingEnvVars: [] as string[],
+        })),
+      },
+      topActions: highPriority.slice(0, 5).map((o) => ({
+        id: String((o as Record<string, unknown>).id),
+        title: String((o as Record<string, unknown>).title),
+        priorityScore: num((o as Record<string, unknown>).priority_score),
+      })),
+    }
+  }
 }
 
 function num(value: unknown): number {
