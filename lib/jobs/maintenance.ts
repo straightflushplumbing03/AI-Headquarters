@@ -53,6 +53,40 @@ function weekBucket(prefix: string, now: Date): string {
   return `${prefix}-${week}`
 }
 
+/**
+ * Business-hours gate for the AI Authority cadences.
+ *
+ * The tick endpoint runs every minute (Vercel Cron `* * * * *`). Left ungated,
+ * the daily collection would fire at 00:00 UTC -- which is 4 or 5 PM Pacific,
+ * mid-afternoon, not the "6:00 AM Pacific" the schedule is specified in. This
+ * gate holds the cadence until the first tick at or after 06:00 in the target
+ * timezone, so a run lands shortly after 6 AM Pacific.
+ *
+ * The gate is derived from `now`, so it is deterministic and testable. Because
+ * the tick runs every minute, the first tick past the threshold is within a
+ * minute of 06:00 local. The date/week bucket keys below use the UTC date; at
+ * 06:00 Pacific (13:00 or 14:00 UTC) the UTC date equals the Pacific date, so
+ * bucketing stays correct.
+ */
+export const AUTHORITY_TIMEZONE = 'America/Los_Angeles'
+export const AUTHORITY_DAILY_GATE_HOUR = 6
+
+/** The calendar hour (0-23) of `now` in the given IANA timezone. */
+export function hourInTimezone(now: Date, timeZone: string): number {
+  const formatted = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: 'numeric',
+    hour12: false,
+  }).format(now)
+  // Some ICU versions render midnight as "24".
+  return Number(formatted) % 24
+}
+
+/** True when `now` is at or after the daily gate hour in the target timezone. */
+export function atOrAfterDailyGate(now: Date): boolean {
+  return hourInTimezone(now, AUTHORITY_TIMEZONE) >= AUTHORITY_DAILY_GATE_HOUR
+}
+
 export class AuthorityScheduler {
   private queue: BackgroundJobQueue
 
@@ -77,6 +111,9 @@ export class AuthorityScheduler {
     let scheduled = 0
     const orgIds = await this.authorityOrganizations()
 
+    // Hold the daily cadence until 6:00 AM Pacific (see atOrAfterDailyGate).
+    if (!atOrAfterDailyGate(now)) return { scheduled, errors }
+
     for (const organizationId of orgIds) {
       const jobs: Array<{ jobType: BackgroundJobType; key: string; payload: Record<string, unknown> }> = [
         {
@@ -92,6 +129,11 @@ export class AuthorityScheduler {
         {
           jobType: 'authority_competitor_monitor',
           key: dateBucket('authority-competitors', now),
+          payload: { windowDays: 30 },
+        },
+        {
+          jobType: 'authority_daily_briefing',
+          key: dateBucket('authority-briefing', now),
           payload: { windowDays: 30 },
         },
       ]
@@ -122,6 +164,10 @@ export class AuthorityScheduler {
     const errors: string[] = []
     let scheduled = 0
     const orgIds = await this.authorityOrganizations()
+
+    // Weekly runs share the 6:00 AM Pacific gate: on Monday the first tick at or
+    // after 06:00 PT schedules scoring, then recommendations, then evaluation.
+    if (!atOrAfterDailyGate(now)) return { scheduled, errors }
 
     for (const organizationId of orgIds) {
       const jobs: Array<{ jobType: BackgroundJobType; key: string; payload: Record<string, unknown>; delaySeconds?: number }> = [
