@@ -17,6 +17,7 @@ import {
 } from '@/lib/authority/api-auth'
 import { AuthorityStore } from '@/lib/authority/store'
 import {
+  GoogleAnalyticsIntegration,
   GoogleBusinessProfileIntegration,
   SearchConsoleIntegration,
 } from '@/lib/authority/integrations'
@@ -30,10 +31,11 @@ export async function GET(request: NextRequest) {
     if (isAuthFailure(auth)) return auth.response
 
     const store = new AuthorityStore(auth.supabase)
-    const [rows, gsc, gbp, engines, latestMetrics] = await Promise.all([
+    const [rows, gsc, gbp, ga4, engines, latestMetrics] = await Promise.all([
       store.listIntegrations(auth.organizationId),
       new SearchConsoleIntegration(auth.supabase).status(auth.organizationId),
       new GoogleBusinessProfileIntegration(auth.supabase).status(auth.organizationId),
+      new GoogleAnalyticsIntegration(auth.supabase).status(auth.organizationId),
       store.listEngines(auth.organizationId),
       loadLatestMetricDates(auth.supabase, auth.organizationId),
     ])
@@ -67,6 +69,20 @@ export async function GET(request: NextRequest) {
           purpose:
             'Local performance: impressions, calls, direction requests. Read-only. Profile information ' +
             'is never modified automatically.',
+        },
+        {
+          provider: 'google_analytics_4',
+          displayName: 'Google Analytics 4',
+          status: ga4.status,
+          message: ga4.message,
+          missingEnvVars: ga4.missingEnvVars,
+          lastSyncAt:
+            (rows.find((r) => r.provider === 'google_analytics_4')?.last_sync_at as string | null) ??
+            null,
+          latestMetricDate: latestMetrics.ga4,
+          purpose:
+            'Site traffic and engagement: sessions, users, conversions. Read-only. Metrics the ' +
+            'property cannot report are left null, never estimated.',
         },
         {
           provider: 'website',
@@ -115,8 +131,8 @@ async function loadLatestMetricDates(
       : never
     : never,
   organizationId: string
-): Promise<{ searchConsole: string | null; gbp: string | null; crawl: string | null }> {
-  const [gsc, gbp, crawl] = await Promise.all([
+): Promise<{ searchConsole: string | null; gbp: string | null; ga4: string | null; crawl: string | null }> {
+  const [gsc, gbp, ga4, crawl] = await Promise.all([
     supabase
       .from('authority_search_metrics')
       .select('metric_date')
@@ -126,6 +142,13 @@ async function loadLatestMetricDates(
       .maybeSingle(),
     supabase
       .from('authority_gbp_metrics')
+      .select('metric_date')
+      .eq('organization_id', organizationId)
+      .order('metric_date', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('authority_ga4_metrics')
       .select('metric_date')
       .eq('organization_id', organizationId)
       .order('metric_date', { ascending: false })
@@ -144,6 +167,7 @@ async function loadLatestMetricDates(
   return {
     searchConsole: (gsc.data as { metric_date?: string } | null)?.metric_date ?? null,
     gbp: (gbp.data as { metric_date?: string } | null)?.metric_date ?? null,
+    ga4: (ga4.data as { metric_date?: string } | null)?.metric_date ?? null,
     crawl: (crawl.data as { started_at?: string } | null)?.started_at ?? null,
   }
 }

@@ -23,9 +23,11 @@ import {
 import { AuthorityStore } from '@/lib/authority/store'
 import { AuthorityBudgetService } from '@/lib/authority/cost-control'
 import {
+  GoogleAnalyticsIntegration,
   GoogleBusinessProfileIntegration,
   SearchConsoleIntegration,
   missingCredentialEnvVars,
+  type IntegrationProvider,
 } from '@/lib/authority/integrations'
 
 export const dynamic = 'force-dynamic'
@@ -55,8 +57,10 @@ export async function GET(request: NextRequest) {
       integrations: integrations.map((row) => {
         const provider = String(row.provider)
         const missing =
-          provider === 'google_search_console' || provider === 'google_business_profile'
-            ? missingCredentialEnvVars(provider)
+          provider === 'google_search_console' ||
+          provider === 'google_business_profile' ||
+          provider === 'google_analytics_4'
+            ? missingCredentialEnvVars(provider as IntegrationProvider)
             : []
         return {
           provider,
@@ -128,8 +132,19 @@ export async function PATCH(request: NextRequest) {
       applied.push('siteOrigin')
     }
 
-    for (const provider of ['google_search_console', 'google_business_profile']) {
-      const value = body?.[provider === 'google_search_console' ? 'searchConsoleProperty' : 'gbpLocationRef']
+    for (const provider of [
+      'google_search_console',
+      'google_business_profile',
+      'google_analytics_4',
+    ] as const) {
+      const value =
+        body?.[
+          provider === 'google_search_console'
+            ? 'searchConsoleProperty'
+            : provider === 'google_business_profile'
+              ? 'gbpLocationRef'
+              : 'ga4PropertyId'
+        ]
       if (typeof value === 'string' && value.length > 0) {
         await store.updateIntegration(auth.organizationId, provider, {
           property_or_location: value.slice(0, 500),
@@ -159,12 +174,13 @@ export async function PATCH(request: NextRequest) {
     })
 
     // Report the resulting integration status honestly after the change.
-    const [gsc, gbp] = await Promise.all([
+    const [gsc, gbp, ga4] = await Promise.all([
       new SearchConsoleIntegration(auth.supabase).status(auth.organizationId),
       new GoogleBusinessProfileIntegration(auth.supabase).status(auth.organizationId),
+      new GoogleAnalyticsIntegration(auth.supabase).status(auth.organizationId),
     ])
 
-    return NextResponse.json({ success: true, applied, integrations: { gsc, gbp } })
+    return NextResponse.json({ success: true, applied, integrations: { gsc, gbp, ga4 } })
   } catch (error) {
     return authorityErrorResponse(error, 'settings.patch')
   }

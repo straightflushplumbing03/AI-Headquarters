@@ -1368,6 +1368,22 @@ export class AuthorityStore {
     return true
   }
 
+  /** Upsert GA4 daily metrics. Idempotent on (org, property, date). */
+  async upsertGa4Metric(row: Record<string, unknown>): Promise<boolean> {
+    requireOrg(row.organization_id as string)
+    const { error } = await this.supabase
+      .from('authority_ga4_metrics')
+      .upsert(row, {
+        onConflict: 'organization_id,property_id,metric_date',
+        ignoreDuplicates: false,
+      })
+    if (error) {
+      console.error(`[authority] GA4 metric upsert failed: ${error.message}`)
+      return false
+    }
+    return true
+  }
+
   // -------------------------------------------------------------------------
   // Opportunities, recommendations, experiments
   // -------------------------------------------------------------------------
