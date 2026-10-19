@@ -34,6 +34,7 @@ import {
   authorityRecommendationGeneration,
   authorityExperimentEvaluation,
   authorityDataQualitySweep,
+  authorityDailyBriefing,
 } from '@/lib/authority/jobs'
 import type {
   BackgroundJobType,
@@ -244,6 +245,7 @@ export const JOB_HANDLERS: Record<BackgroundJobType, JobHandler> = {
   authority_recommendation_generation: authorityRecommendationGeneration,
   authority_experiment_evaluation: authorityExperimentEvaluation,
   authority_data_quality_sweep: authorityDataQualitySweep,
+  authority_daily_briefing: authorityDailyBriefing,
 }
 
 export function getHandler(jobType: string): JobHandler | undefined {

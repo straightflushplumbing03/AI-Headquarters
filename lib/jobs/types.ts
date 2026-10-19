@@ -29,6 +29,7 @@ export type BackgroundJobType =
   | 'authority_recommendation_generation'
   | 'authority_experiment_evaluation'
   | 'authority_data_quality_sweep'
+  | 'authority_daily_briefing'
 
 export interface ApprovalSweepPayload {
   // Expire every pending approval whose response_deadline has passed for the
@@ -65,6 +66,7 @@ export type BackgroundJobPayload =
   | AuthorityRecommendationGenerationPayload
   | AuthorityExperimentEvaluationPayload
   | AuthorityDataQualityPayload
+  | AuthorityDailyBriefingPayload
   | AuthorityIntegrationSyncPayload
 
 /**
@@ -114,6 +116,10 @@ export interface AuthorityExperimentEvaluationPayload {
 
 export interface AuthorityDataQualityPayload {
   limit?: number
+}
+
+export interface AuthorityDailyBriefingPayload {
+  windowDays?: number
 }
 
 export interface AuthorityIntegrationSyncPayload {
