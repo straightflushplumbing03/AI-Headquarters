@@ -1,9 +1,18 @@
 # AI Headquarters — Master Status & Next Actions
 
-**Last reviewed:** 2026-10-15  
+**Last reviewed:** 2026-10-19  
 **Repository:** `straightflushplumbing03/AI-Headquarters`  
 **Default branch:** `main`  
 **Purpose:** This is the plain-English control document for the Straight Flush Plumbing AI Headquarters project. It separates code that exists from capabilities proven to work live.
+
+## Change log
+
+- **2026-10-15** — first version of this document.
+- **2026-10-19** — PR #15 merged (`d9c226c`): 6:00 AM Pacific daily gate, daily
+  business briefing, operations/handoff and connections docs. PR #18 opened
+  (`intelligence-hq/ga4-and-repo-status`): Google Analytics 4 adapter and a
+  read-only GitHub repository-status adapter. Both new integrations are
+  credential-gated and collect nothing until credentials are supplied.
 
 ## Executive summary
 
@@ -21,22 +30,22 @@ Do not use old README badges or statements such as “production ready,” “al
 - AI provider abstraction for OpenAI and Anthropic; cost tracking and budget controls.
 - Six specialist agent modules: competitive intelligence, SEO strategy, content strategy, website optimization, local SEO, and analytics.
 - Background job queue, worker handlers, approval-to-execution path, retry/idempotency protections, and emergency-stop controls.
-- A daily briefing / 6:00 AM Pacific cadence implementation is proposed in PR #15; it is **not considered active in production until merged, deployed, configured, and tested**.
+- A daily briefing / 6:00 AM Pacific cadence (merged in PR #15); it is **not considered active in production until deployed, configured, and tested**.
 
 ## Current blockers and dependencies
 
 | Priority | Item | Known status | What proves completion |
 |---|---|---|---|
 | P0 | Establish one trusted project status and backlog | This document is the proposed starting point; merge it after review | This file is merged and referenced by the README / handoff |
-| P0 | Review open pull requests and stale Copilot work | Open PRs include #15 and older WIP Copilot PRs (#2, #4, #5, #6, #7); PR #16 also needs current-state review | Every PR is marked merge, revise, or close with a reason; no PR is merged just to tidy the list |
+| P0 | Review open pull requests and stale Copilot work | PR #15 merged 2026-10-19 (`d9c226c`). PR #18 open (GA4 + read-only repo status). Older WIP Copilot PRs (#2, #4, #5, #6, #7) still open | Every PR is marked merge, revise, or close with a reason; no PR is merged just to tidy the list |
 | P0 | Confirm the hosting deployment is healthy | Handoff notes a previous Vercel deployment problem tied to missing `NEXT_PUBLIC_SUPABASE_*` environment variables; current status must be checked | Successful deployment plus authenticated smoke test |
 | P0 | Verify database migrations and tenant isolation on a dedicated test database | Live hosted Supabase verification was previously blocked / unverified | `npm run test:live` and RLS probes pass against a separate test project, never production |
 | P0 | Run a real AI request through provider → parser → persisted result | No provider key / real parsed response was recorded in the handoff at the time of the audit | One successful, repeatable test query with output stored and errors handled |
 | P0 | Configure scheduled job execution | `/api/jobs/tick` requires `CRON_SECRET`; current deployment configuration must be verified | Authenticated cron tick succeeds; job is persisted, claimed, completed, and visible in logs |
 | P1 | Connect Google Search Console and Google Business Profile | Code is described as implemented but credential-gated in PR #15 | OAuth configured securely and one real read-only request succeeds for each service |
-| P1 | Implement GA4 connection | PR #15 describes GA4 as not built | Integration has tests and returns actual GA4 data |
-| P1 | Add GitHub CI/deployment status integration | PR #15 describes this as not built; handoff says no project-owned `.github/workflows` existed at audit time | CI runs on pull requests and reports status; deployment status is observable |
-| P1 | Verify the daily briefing at 6:00 AM America/Los_Angeles | Code exists in PR #15; deployment and configuration not confirmed | Several successful runs, including daylight-saving-safe schedule behavior |
+| P1 | Implement GA4 connection | **Built 2026-10-19 (PR #18)** — adapter, `authority_ga4_metrics` table, monthly job, tests. Not yet live: no credentials configured | Integration returns actual GA4 data for a configured property |
+| P1 | Add GitHub CI/deployment status integration | **Read-only adapter built 2026-10-19 (PR #18)** — GET-only branch/CI/PR snapshot at `GET /api/ai-authority/repository-status`. No `GITHUB_STATUS_TOKEN` configured yet | CI status observable for the platform's own repo; token configured |
+| P1 | Verify the daily briefing at 6:00 AM America/Los_Angeles | Code merged in PR #15; deployment and configuration not confirmed | Several successful runs, including daylight-saving-safe schedule behavior |
 | P1 | Separate AI-search checks from estimates/proxies | AI visibility should not be reported as measured unless actual queries were run | Reports label source, date, query, response, and confidence; unavailable sources remain unavailable |
 | P1 | Establish approved website-change workflow | Intended loop is monitor → recommend → approve → implement → measure → learn | Proposed changes use a separate branch/PR, checks pass, owner approves, then deployment is verified |
 | P2 | Measure business outcomes | Requires analytics / call / lead data | Monthly baseline and tracked changes for search visibility, qualified calls, leads, and booked work |
@@ -45,7 +54,7 @@ Do not use old README badges or statements such as “production ready,” “al
 
 Review each PR's current status and diff before deciding. Do not close or merge solely based on age.
 
-1. **PR #15 — daily automation + connection checklist:** inspect the latest diff and checks. If sound, confirm required secrets and migration behavior, then merge only with owner authorization and deploy separately.
+1. **PR #15 — daily automation + connection checklist:** **MERGED 2026-10-19** as `d9c226c`. Follow-up PR #18 (GA4 + read-only repo status) is open for review.
 2. **PR #16 — Vercel Web Analytics:** verify whether it is still open, inspect its diff and checks, and merge only if it is still needed and compatible with the actual hosting setup.
 3. **PRs #2, #4, #5, #6, #7 — WIP Copilot requests:** inspect whether they contain useful unique fixes or are stale duplicates. Close only after checking their diffs and related commits.
 4. Re-run the test suite after any merge. Never infer production health from a green unit-test run alone.
@@ -56,6 +65,8 @@ Review each PR's current status and diff before deciding. Do not close or merge 
 - One AI provider API key, securely configured, to run a real request.
 - `CRON_SECRET` configured in the actual hosting project's environment.
 - Google OAuth access/refresh tokens for Search Console and Business Profile, where required.
+- Google OAuth refresh token for Analytics 4 (scope `analytics.readonly`) plus the numeric GA4 property id.
+- Optional: `GITHUB_STATUS_TOKEN` (fine-grained, read-only) to enable the repository-status endpoint.
 - Access to the hosting dashboard to verify deployments and environment-variable names.
 - Confirm the intended hosting and billing plan before enabling minute-level cron.
 
@@ -64,7 +75,7 @@ Review each PR's current status and diff before deciding. Do not close or merge 
 ## Safe execution order
 
 ### Milestone 1 — Repository organization
-- [ ] Review current default-branch state and all open PRs.
+- [x] Review current default-branch state and all open PRs.
 - [ ] Classify each PR: merge, revise, or close.
 - [ ] Reconcile conflicting README, roadmap, handoff, and deployment claims.
 - [ ] Keep prototype directories `isolate/` and `ai-headquarters/` clearly labeled as prototypes unless deliberately integrated.
@@ -88,7 +99,7 @@ Review each PR's current status and diff before deciding. Do not close or merge 
 - [ ] Observe several consecutive runs and test a deliberate failure/retry.
 
 ### Milestone 5 — Website improvement loop
-- [ ] Establish a baseline from Search Console, GBP, GA4, and website technical checks.
+- [ ] Establish a baseline from Search Console, GBP, GA4, and website technical checks. *(GA4 adapter and read-only repo status now built — PR #18 — but no credentials are configured, so no baseline data exists yet.)*
 - [ ] Produce prioritized, evidence-backed recommendations.
 - [ ] Create website changes on a separate branch and pull request.
 - [ ] Require owner approval before production publishing.
