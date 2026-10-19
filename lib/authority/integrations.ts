@@ -1,7 +1,7 @@
 /**
- * AI Authority Engine -- external integrations (Search Console, GBP).
+ * AI Authority Engine -- external integrations (Search Console, GBP, GA4).
  *
- * Both integrations are credential-gated and report their state HONESTLY.
+ * All integrations are credential-gated and report their state HONESTLY.
  * There is no synthetic fallback data: if credentials are absent, the
  * integration reports `unconfigured` and syncs nothing. The rest of the engine
  * keeps working on the data it does have, which is the required behaviour when
@@ -22,6 +22,12 @@
  *     GOOGLE_BUSINESS_PROFILE_REFRESH_TOKEN
  *     (plus the location reference stored per-org)
  *
+ *   Google Analytics 4
+ *     GOOGLE_ANALYTICS_CLIENT_ID
+ *     GOOGLE_ANALYTICS_CLIENT_SECRET
+ *     GOOGLE_ANALYTICS_REFRESH_TOKEN
+ *     (plus the numeric property id stored per-org)
+ *
  * The OAuth authorization-code exchange is intentionally NOT automated here:
  * obtaining a refresh token requires a human consent screen. Once the operator
  * supplies a refresh token as a secret, these adapters work without code
@@ -31,7 +37,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { AuthorityStore } from './store'
 
-export type IntegrationProvider = 'google_search_console' | 'google_business_profile'
+export type IntegrationProvider =
+  | 'google_search_console'
+  | 'google_business_profile'
+  | 'google_analytics_4'
 
 export interface IntegrationCredentials {
   clientId: string
@@ -57,6 +66,11 @@ const CREDENTIAL_ENV_VARS: Record<IntegrationProvider, string[]> = {
     'GOOGLE_BUSINESS_PROFILE_CLIENT_SECRET',
     'GOOGLE_BUSINESS_PROFILE_REFRESH_TOKEN',
   ],
+  google_analytics_4: [
+    'GOOGLE_ANALYTICS_CLIENT_ID',
+    'GOOGLE_ANALYTICS_CLIENT_SECRET',
+    'GOOGLE_ANALYTICS_REFRESH_TOKEN',
+  ],
 }
 
 /** Which credential env vars are missing in this process. */
@@ -76,6 +90,13 @@ export function credentialsFor(provider: IntegrationProvider): IntegrationCreden
       clientId: process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET!,
       refreshToken: process.env.GOOGLE_SEARCH_CONSOLE_REFRESH_TOKEN!,
+    }
+  }
+  if (provider === 'google_analytics_4') {
+    return {
+      clientId: process.env.GOOGLE_ANALYTICS_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_ANALYTICS_CLIENT_SECRET!,
+      refreshToken: process.env.GOOGLE_ANALYTICS_REFRESH_TOKEN!,
     }
   }
   return {
@@ -565,6 +586,268 @@ export class GoogleBusinessProfileIntegration {
       return { synced: false, rows: 0, reason: message }
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Google Analytics 4
+// ---------------------------------------------------------------------------
+
+export interface Ga4MetricRow {
+  date: string
+  sessions: number | null
+  totalUsers: number | null
+  newUsers: number | null
+  engagedSessions: number | null
+  engagementRate: number | null
+  screenPageViews: number | null
+  averageSessionDuration: number | null
+  conversions: number | null
+  conversionsAvailable: boolean
+  raw: Record<string, unknown>
+}
+
+/** Metric name -> output key. Absent metrics stay null, never zero. */
+const GA4_METRICS: Array<{ api: string; key: keyof Ga4MetricRow }> = [
+  { api: 'sessions', key: 'sessions' },
+  { api: 'totalUsers', key: 'totalUsers' },
+  { api: 'newUsers', key: 'newUsers' },
+  { api: 'engagedSessions', key: 'engagedSessions' },
+  { api: 'engagementRate', key: 'engagementRate' },
+  { api: 'screenPageViews', key: 'screenPageViews' },
+  { api: 'averageSessionDuration', key: 'averageSessionDuration' },
+  { api: 'conversions', key: 'conversions' },
+]
+
+/**
+ * Query the GA4 Data API (runReport) for daily property metrics.
+ *
+ * Read-only. The API returns rows keyed by the requested dimensions/metrics;
+ * a metric that the property cannot report is simply absent from the response,
+ * and we preserve that as null rather than inventing a zero.
+ */
+export async function fetchGa4Metrics(params: {
+  accessToken: string
+  propertyId: string
+  startDate: string
+  endDate: string
+}): Promise<Ga4MetricRow[]> {
+  const property = params.propertyId.startsWith('properties/')
+    ? params.propertyId
+    : `properties/${params.propertyId}`
+  const url = `https://analyticsdata.googleapis.com/v1beta/${property}:runReport`
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      dateRanges: [{ startDate: params.startDate, endDate: params.endDate }],
+      dimensions: [{ name: 'date' }],
+      metrics: GA4_METRICS.map((m) => ({ name: m.api })),
+    }),
+  })
+
+  const raw = await response.text()
+  if (!response.ok) {
+    throw new Error(`GA4 runReport failed (HTTP ${response.status}): ${truncate(raw, 200)}`)
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error('GA4 returned non-JSON body')
+  }
+
+  const body = (parsed ?? {}) as { rows?: unknown[] }
+  const rows = Array.isArray(body.rows) ? body.rows : []
+
+  return rows.map((entry) => {
+    const row = (entry ?? {}) as Record<string, unknown>
+    const dimensionValues = Array.isArray(row.dimensionValues) ? (row.dimensionValues as unknown[]) : []
+    const metricValues = Array.isArray(row.metricValues) ? (row.metricValues as unknown[]) : []
+
+    const rawDate = valueOf(dimensionValues[0])
+    const result: Ga4MetricRow = {
+      date: normalizeGa4Date(rawDate),
+      sessions: null,
+      totalUsers: null,
+      newUsers: null,
+      engagedSessions: null,
+      engagementRate: null,
+      screenPageViews: null,
+      averageSessionDuration: null,
+      conversions: null,
+      conversionsAvailable: false,
+      raw: row,
+    }
+
+    GA4_METRICS.forEach((metric, index) => {
+      const value = ga4Number(valueOf(metricValues[index]))
+      if (value === null) return
+      const key = metric.key
+      if (key === 'conversions') result.conversions = Math.round(value)
+      else if (key === 'date' || key === 'raw' || key === 'conversionsAvailable') return
+      else result[key] = value
+    })
+    result.conversionsAvailable = result.conversions !== null
+    return result
+  })
+}
+
+export class GoogleAnalyticsIntegration {
+  private store: AuthorityStore
+
+  constructor(supabase: SupabaseClient) {
+    this.store = new AuthorityStore(supabase)
+  }
+
+  async status(organizationId: string): Promise<IntegrationStatus> {
+    const missing = missingCredentialEnvVars('google_analytics_4')
+    const row = await this.store.getIntegration(organizationId, 'google_analytics_4')
+    const property = (row?.property_or_location as string | null) ?? null
+
+    if (missing.length > 0) {
+      return {
+        provider: 'google_analytics_4',
+        status: 'unconfigured',
+        missingEnvVars: missing,
+        message:
+          `Cannot sync Google Analytics 4: missing ${missing.join(', ')}. ` +
+          `Traffic metrics are reported as unavailable, never estimated.`,
+      }
+    }
+    if (!property) {
+      return {
+        provider: 'google_analytics_4',
+        status: 'configured',
+        missingEnvVars: [],
+        message:
+          'Credentials are present but no GA4 property is configured. Set ' +
+          'authority_integrations.property_or_location to the numeric property id.',
+      }
+    }
+    return {
+      provider: 'google_analytics_4',
+      status: (row?.status as IntegrationStatus['status']) ?? 'connected',
+      missingEnvVars: [],
+      message: `Configured for GA4 property ${property}.`,
+    }
+  }
+
+  /**
+   * Sync a date window of GA4 metrics.
+   *
+   * Returns a summary instead of throwing for the common "not configured" case
+   * so a scheduled job records an honest skip rather than a retry storm.
+   */
+  async sync(params: {
+    organizationId: string
+    days?: number
+    startDate?: string
+    endDate?: string
+  }): Promise<{ synced: boolean; rows: number; reason?: string }> {
+    const organizationId = params.organizationId
+    const row = await this.store.getIntegration(organizationId, 'google_analytics_4')
+    const property = (row?.property_or_location as string | null) ?? null
+    const credentials = credentialsFor('google_analytics_4')
+
+    if (!credentials || !property) {
+      const status = await this.status(organizationId)
+      await this.store.updateIntegration(organizationId, 'google_analytics_4', {
+        status: 'unconfigured',
+        last_error: status.message,
+      })
+      return { synced: false, rows: 0, reason: status.message }
+    }
+
+    const end = params.endDate ?? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const start =
+      params.startDate ??
+      new Date(Date.now() - (params.days ?? 7) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+    try {
+      const accessToken = await fetchAccessToken(credentials)
+      const metrics = await fetchGa4Metrics({
+        accessToken,
+        propertyId: property,
+        startDate: start,
+        endDate: end,
+      })
+
+      let written = 0
+      for (const metric of metrics) {
+        const ok = await this.store.upsertGa4Metric({
+          organization_id: organizationId,
+          property_id: property,
+          metric_date: metric.date || start,
+          sessions: metric.sessions,
+          total_users: metric.totalUsers,
+          new_users: metric.newUsers,
+          engaged_sessions: metric.engagedSessions,
+          engagement_rate: metric.engagementRate,
+          screen_page_views: metric.screenPageViews,
+          average_session_duration: metric.averageSessionDuration,
+          conversions: metric.conversions,
+          conversions_available: metric.conversionsAvailable,
+          raw: metric.raw,
+        })
+        if (ok) written += 1
+      }
+
+      await this.store.updateIntegration(organizationId, 'google_analytics_4', {
+        status: 'connected',
+        last_sync_at: new Date().toISOString(),
+        last_error: null,
+      })
+
+      await this.store.logAudit({
+        organizationId,
+        userId: null,
+        action: 'ai_authority.ga4_synced',
+        resource: 'authority_integration:google_analytics_4',
+        details: `Synced ${written} day(s) of GA4 metrics for ${start}..${end}`,
+        metadata: { start, end, rows: written },
+      })
+
+      return { synced: true, rows: written }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      await this.store.updateIntegration(organizationId, 'google_analytics_4', {
+        status: 'error',
+        last_error: message.slice(0, 500),
+      })
+      return { synced: false, rows: 0, reason: message }
+    }
+  }
+}
+
+function valueOf(value: unknown): string | null {
+  if (value === null || value === undefined) return null
+  const obj = value as Record<string, unknown>
+  const raw = typeof obj === 'object' && 'value' in obj ? obj.value : value
+  return raw === null || raw === undefined ? null : String(raw)
+}
+
+/** GA4 returns dates as YYYYMMDD; normalise to YYYY-MM-DD for the DATE column. */
+function normalizeGa4Date(value: string | null): string {
+  if (!value) return ''
+  if (/^\d{8}$/.test(value)) return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`
+  return value
+}
+
+/**
+ * Parse a GA4 metric value.
+ *
+ * Distinct from toNumber because `Number(null) === 0` would turn a metric the
+ * property never reported into a real zero. An absent value must stay null.
+ */
+function ga4Number(value: string | null): number | null {
+  if (value === null || value.trim() === '') return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
 }
 
 function toInt(value: unknown): number {

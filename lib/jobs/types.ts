@@ -25,6 +25,7 @@ export type BackgroundJobType =
   | 'authority_website_crawl'
   | 'authority_search_console_sync'
   | 'authority_gbp_sync'
+  | 'authority_ga4_sync'
   | 'authority_scoring'
   | 'authority_recommendation_generation'
   | 'authority_experiment_evaluation'

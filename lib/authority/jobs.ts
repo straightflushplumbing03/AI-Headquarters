@@ -18,7 +18,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { PermanentJobError, type JobHandler } from '@/lib/jobs/errors'
 import { AuthorityOrchestrator, AuthorityOverviewService, subjectDomainList } from '@/lib/authority/orchestrator'
-import { SearchConsoleIntegration, GoogleBusinessProfileIntegration } from '@/lib/authority/integrations'
+import { SearchConsoleIntegration, GoogleBusinessProfileIntegration, GoogleAnalyticsIntegration } from '@/lib/authority/integrations'
 import { AuthorityStore } from '@/lib/authority/store'
 import { AuthorityQueryRunner } from '@/lib/authority/query-runner'
 import {
@@ -268,6 +268,28 @@ export const authorityGbpSync: JobHandler = async (job, ctx) => {
   const payload = (job.payload ?? {}) as AuthorityIntegrationSyncPayload
 
   const integration = new GoogleBusinessProfileIntegration(ctx.supabase)
+  const result = await integration.sync({
+    organizationId,
+    days: payload.days ?? 7,
+    startDate: payload.startDate,
+    endDate: payload.endDate,
+  })
+
+  if (!result.synced) {
+    return { synced: false, rows: 0, reason: result.reason ?? 'not configured' }
+  }
+  return { synced: true, rows: result.rows }
+}
+
+/**
+ * GA4 sync. Same contract as the Search Console and GBP syncs: an unconfigured
+ * integration is an honest skip (no retries), a real API failure is transient.
+ */
+export const authorityGa4Sync: JobHandler = async (job, ctx) => {
+  const { organizationId } = buildContext(job, ctx.supabase)
+  const payload = (job.payload ?? {}) as AuthorityIntegrationSyncPayload
+
+  const integration = new GoogleAnalyticsIntegration(ctx.supabase)
   const result = await integration.sync({
     organizationId,
     days: payload.days ?? 7,

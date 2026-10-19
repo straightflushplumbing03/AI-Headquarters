@@ -47,3 +47,6 @@ supabase/.temp/
 
 # TypeScript incremental build cache (generated)
 tsconfig.tsbuildinfo
+
+# Agent scratch memory (local only)
+.openhands/

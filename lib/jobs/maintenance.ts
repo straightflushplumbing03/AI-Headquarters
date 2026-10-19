@@ -238,6 +238,11 @@ export class AuthorityScheduler {
           key: monthBucket('authority-gbp', now),
           payload: { days: 30 },
         },
+        {
+          jobType: 'authority_ga4_sync',
+          key: monthBucket('authority-ga4', now),
+          payload: { days: 30 },
+        },
       ]
 
       for (const spec of jobs) {

@@ -93,23 +93,25 @@ Steps:
 
 ## 3. Google Analytics 4
 
-**Status: not built.**
+**Status: adapter built, awaiting credentials.**
 
-- There is no GA4 adapter, no `authority_ga4_metrics` table, and no
-  `authority_ga4_sync` job. Nothing is collected or estimated.
-- GA4 is on the Phase 3 list. It needs a small, additive build that mirrors the
-  Search Console integration (OAuth refresh token → Data API runReport →
-  org-scoped metrics table → monthly job). It is intentionally **not** claimed
-  as done.
+- Code: `lib/authority/integrations.ts` (`GoogleAnalyticsIntegration`,
+  `fetchGa4Metrics`), table `authority_ga4_metrics`, job `authority_ga4_sync`
+  (monthly), route `GET /api/ai-authority/integrations`.
+- Read-only: a single read-only POST to the GA4 Data API `runReport`; no
+  configuration is changed. Metrics the property cannot report are stored as
+  `NULL`, never zero.
+- Nothing is collected or estimated until the owner supplies credentials. The
+  integration reports `unconfigured` until then.
 
-**Owner must provide (when built):**
+**Owner must provide:**
 
 | Variable | Where to get it |
 |---|---|
 | `GOOGLE_ANALYTICS_CLIENT_ID` | Google Cloud Console OAuth client with the Analytics Data API enabled |
 | `GOOGLE_ANALYTICS_CLIENT_SECRET` | Same OAuth client |
 | `GOOGLE_ANALYTICS_REFRESH_TOKEN` | One-time consent flow, scope `https://www.googleapis.com/auth/analytics.readonly` |
-| GA4 property id | Analytics → Admin → Property settings (a numeric id) |
+| GA4 property id | Analytics → Admin → Property settings (a numeric id); store in `authority_integrations.property_or_location` for provider `google_analytics_4` |
 
 ---
 
@@ -131,21 +133,24 @@ Steps:
 
 ## 5. GitHub — pull requests, deployment status, CI checks
 
-**Status: not built for CI/deploy status.**
+**Status: read-only adapter built, awaiting token.**
 
-- `lib/phase4/github-integration.ts` is an unrelated change-request bookkeeping
-  module; it does not read live PR, deployment, or CI state.
-- There is no adapter that reports deployment status or workflow conclusions to
-  the AI Authority engine. Nothing is claimed here.
-- This is a Phase 3 candidate: a read-only GitHub adapter using a
-  fine-grained token, surfacing PR/CI/deploy status for the platform's own
-  branches so the daily briefing can state whether a change deployed cleanly.
+- Code: `lib/authority/repository-status.ts` (`RepositoryStatusService`,
+  `fetchRepositoryStatus`), route `GET /api/ai-authority/repository-status`.
+- READ-ONLY: only GET requests are issued (branches, check-runs, open PRs).
+  It cannot open, merge, comment on, or close anything.
+- `lib/phase4/github-integration.ts` remains the unrelated change-request
+  bookkeeping module and is unchanged.
+- Reports `unconfigured` with no token; CI status is never assumed green.
 
-**Owner must provide (when built):**
+**Owner must provide:**
 
 | Variable | Where to get it |
 |---|---|
-| `GITHUB_TOKEN` (read-only, scoped to the repo) | GitHub → Settings → Developer settings → Fine-grained tokens → Contents/PRs/Actions: read |
+| `GITHUB_STATUS_TOKEN` (read-only, scoped to the repo) | GitHub → Settings → Developer settings → Fine-grained tokens → Contents / Pull requests / Actions: **read** |
+| Repository ref | store `owner/repo` in `authority_integrations.property_or_location` for provider `github_repository` |
+
+`GITHUB_TOKEN` is used as a fallback when `GITHUB_STATUS_TOKEN` is unset.
 
 ---
 
