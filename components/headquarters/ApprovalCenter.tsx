@@ -16,6 +16,7 @@ export function ApprovalCenter() {
   const [_organization, setOrganization] = useState<Organization | null>(null)
   const [approvals, setApprovals] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadData = async () => {
@@ -28,15 +29,17 @@ export function ApprovalCenter() {
 
         setOrganization(org)
 
-        // Load tasks waiting for approval
-        const { data: tasksData } = await supabase
-          .from('tasks')
-          .select('*')
+        // Pending workforce approval requests (recorded by the engine when an
+        // agent's grant requires owner approval for a specific action).
+        const { data: approvalData } = await supabase
+          .from('approval_requests')
+          .select('id, title, description, requested_action, scope, created_at, expires_at, task_id, tasks(title)')
           .eq('organization_id', organizationId)
-          .eq('status', 'waiting_approval')
+          .eq('status', 'pending')
+          .not('requested_action', 'is', null)
           .order('created_at', { ascending: false })
 
-        setApprovals(tasksData || [])
+        setApprovals(approvalData || [])
       } catch (error) {
         console.error('Failed to load approvals:', error)
       } finally {
@@ -47,31 +50,30 @@ export function ApprovalCenter() {
     loadData()
   }, [organizationId, supabase])
 
-  const handleApprove = async (taskId: string) => {
+  // Decisions go through the enforced server path; the database checks the
+  // reviewer's role and records the decision. Hiding a button is not access control.
+  const decide = async (approvalId: string, decision: 'approved' | 'rejected') => {
+    setError(null)
     try {
-      await supabase
-        .from('tasks')
-        .update({ status: 'queued' })
-        .eq('id', taskId)
-
-      setApprovals((prev) => prev.filter((t) => t.id !== taskId))
-    } catch (error) {
-      console.error('Failed to approve:', error)
+      const res = await fetch(`/api/workforce/approvals/${approvalId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(body.error === 'forbidden' ? 'Only an owner or admin can decide approvals.' : body.error || 'Decision failed')
+        return
+      }
+      setApprovals((prev) => prev.filter((a) => a.id !== approvalId))
+    } catch (err) {
+      console.error('Failed to record decision:', err)
+      setError('Decision failed')
     }
   }
 
-  const handleReject = async (taskId: string) => {
-    try {
-      await supabase
-        .from('tasks')
-        .update({ status: 'cancelled' })
-        .eq('id', taskId)
-
-      setApprovals((prev) => prev.filter((t) => t.id !== taskId))
-    } catch (error) {
-      console.error('Failed to reject:', error)
-    }
-  }
+  const handleApprove = (approvalId: string) => decide(approvalId, 'approved')
+  const handleReject = (approvalId: string) => decide(approvalId, 'rejected')
 
   if (loading) {
     return <div className="text-center text-slate-400">Loading...</div>
@@ -83,6 +85,10 @@ export function ApprovalCenter() {
         <h1 className="text-3xl font-bold">Approval Center</h1>
         <p className="text-slate-400 mt-2">Review and approve AI employee recommendations</p>
       </div>
+
+      {error && (
+        <Card className="border border-red-700 text-red-300 text-sm">{error}</Card>
+      )}
 
       <div className="space-y-4">
         {approvals.length === 0 ? (
@@ -97,12 +103,17 @@ export function ApprovalCenter() {
                 <p className="text-slate-400">{approval.description}</p>
               </div>
 
-              {approval.result && (
-                <div className="bg-slate-800 rounded-lg p-4 space-y-2">
-                  <p className="text-sm font-semibold text-slate-300">Recommendation:</p>
-                  <p className="text-slate-300 text-sm">{approval.result}</p>
-                </div>
-              )}
+              <div className="bg-slate-800 rounded-lg p-4 space-y-1 text-sm text-slate-300">
+                <p>
+                  <span className="font-semibold">Task:</span> {approval.tasks?.title ?? approval.task_id}
+                </p>
+                <p>
+                  <span className="font-semibold">Action:</span> {approval.requested_action} on {approval.scope}
+                </p>
+                <p className="text-slate-400">
+                  Expires {new Date(approval.expires_at).toLocaleString()}
+                </p>
+              </div>
 
               <div className="flex gap-3 pt-4 border-t border-slate-700">
                 <Button

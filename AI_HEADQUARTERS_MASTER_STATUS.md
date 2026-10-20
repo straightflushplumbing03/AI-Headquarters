@@ -13,6 +13,57 @@
   (`intelligence-hq/ga4-and-repo-status`): Google Analytics 4 adapter and a
   read-only GitHub repository-status adapter. Both new integrations are
   credential-gated and collect nothing until credentials are supplied.
+- **2026-10-20** — Phase A workforce core built on branch `phase-a/workforce-core`
+  (local commit, not pushed, not applied to any hosted database). See
+  "Phase A workforce core" below.
+
+## Phase A workforce core (2026-10-20)
+
+**State: implemented and tested locally. Not pushed, not migrated, not deployed.**
+
+What exists:
+
+- `supabase/migrations/025_phase_a_workforce_core.sql` (additive; no drops, no data rewrites).
+  Extends existing `agents`, `tasks`, `activity_events`, `approval_requests`; adds
+  `workforce_agent_permissions`, `task_dependencies`, `workforce_deliverables`,
+  `workforce_task_transitions`. Also adds the columns the app already writes but no
+  migration created (`tasks.creator_id`; `activity_events.agent_id/user_id/title/description/metadata`).
+- All rules live in the database (SECURITY DEFINER `workforce_*` functions + triggers):
+  explicit per-agent grants (deny by default), execution-time permission and approval
+  checks, dependency gating, enforced status transitions, dedupe of open tasks,
+  append-only `activity_events` (no UPDATE/DELETE for any API role; owner too, except
+  whole-org deletion), secret scrubbing of event metadata, deliverables linked to the
+  producing event and verified only with a verification event. Agents (service role)
+  cannot grant permissions or decide approvals.
+- `lib/workforce/service.ts`; routes `POST /api/workforce/tasks`,
+  `GET /api/workforce/tasks/:id` (full history), `POST /api/workforce/approvals/:id`.
+- `ApprovalCenter` now decides real approval records through the enforced route. It
+  previously "approved" by setting `tasks.status` from the browser, which the database
+  now rejects.
+
+Tests:
+
+| Suite | Ran? | Result |
+|---|---|---|
+| `tests/sql/workforce_phase_a_test.sql` (84 checks, real `authenticated`/`service_role`/`anon` roles, local Postgres 16) | Yes, on an existing-chain DB and a fresh DB | 84/84 pass |
+| `tests/unit/workforce-routes.test.ts` (vitest) | **No** — npm registry blocked in the build session, `node_modules` could not be installed | Not run |
+| `tests/integration/workforce-db.test.ts` (vitest wrapper for the SQL suite) | **No** — same reason | Not run |
+
+Known limits / not done:
+
+- No worker calls the executor functions yet; nothing executes tasks in the background.
+- Legacy direct inserts (`CreateTask.tsx`, `lib/services/tasks.ts`) still create tasks
+  without `required_tool`; such tasks can never be claimed (deny by default) until
+  created through `workforce_create_task`.
+- `lib/ai/agents/orchestrator.ts` / `execution-pipeline.ts` (unused) mark tasks
+  completed directly; the database now rejects that path.
+- Pre-existing, unrelated: `tests/sql/sprint5_validation.sql` fails on
+  `budget_reservations.reserved_amount` (012 vs 08 schema conflict).
+- Hosted Supabase project `AI-Headquarters` (`fcjyfjytmtuadfnzpmmu`) has **no tables and
+  no migrations applied**. It is not the database the old handoff notes describe.
+
+Local verification: `DATABASE_URL=postgres://…@localhost/<scratch> scripts/apply-migrations-local.sh`
+then `psql <url> -f tests/sql/workforce_phase_a_test.sql`.
 
 ## Executive summary
 
