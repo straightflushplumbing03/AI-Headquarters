@@ -1,7 +1,7 @@
 /**
  * Sprint 5.3 P1: Worker tick endpoint
  *
- * POST /api/jobs/tick
+ * POST /api/jobs/tick  (GET is identical: Vercel Cron invokes routes with GET)
  *
  * The durable execution entry point that does not depend on a browser being
  * open. Drive it with any external scheduler (Vercel Cron, GitHub Actions
@@ -96,3 +96,7 @@ export async function POST(request: NextRequest) {
     worker: batch,
   })
 }
+
+// Vercel Cron calls the configured path with GET and sends
+// "Authorization: Bearer $CRON_SECRET". Same handler, same fail-closed auth.
+export const GET = POST
