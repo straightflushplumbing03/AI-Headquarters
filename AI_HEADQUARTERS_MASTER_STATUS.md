@@ -62,6 +62,25 @@ Known limits / not done:
 - Hosted Supabase project `AI-Headquarters` (`fcjyfjytmtuadfnzpmmu`) has **no tables and
   no migrations applied**. It is not the database the old handoff notes describe.
 
+### Delegated agent approval (migration 026, 2026-10-20)
+
+**State: implemented and tested locally; pushed to PR #20. Not migrated, not deployed.**
+
+- Owners configure, via `POST /api/workforce/autonomy` (owner/admin only; agents can never call it):
+  action policies (risk floor + owner-only flag + category) and per-agent approval delegations
+  (tool/resource, max risk low|medium, max cost).
+- Requesting agent must submit a business case (justification, benefit, risk, cost, rollback) via
+  `workforce_justify_approval`. A delegate agent decides via `workforce_agent_review_approval`.
+- Hard rules: no self-approval; delegate must hold its own grant for the action; spending, legal,
+  customer data, security, production and irreversible categories are always owner-only; no policy
+  means no agent approval; the owner's risk floor overrides a lowballed declaration; anything outside
+  authority is escalated (left pending for the owner) with the reason recorded. Delegated approvals
+  are re-checked at execution time and stop working if the delegation is revoked or expires.
+- Tests: `tests/sql/workforce_delegation_test.sql` 42/42 pass; Phase A suite still 84/84 after 026.
+  `tests/unit/workforce-autonomy-route.test.ts` written, not run (npm registry blocked).
+- Not yet built: a UI for owners to manage policies/delegations, and an agent runner that calls
+  justify/review automatically.
+
 Local verification: `DATABASE_URL=postgres://…@localhost/<scratch> scripts/apply-migrations-local.sh`
 then `psql <url> -f tests/sql/workforce_phase_a_test.sql`.
 

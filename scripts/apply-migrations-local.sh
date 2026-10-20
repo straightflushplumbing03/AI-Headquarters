@@ -32,7 +32,8 @@ done
 # Supabase grants table privileges to the API roles by default; RLS restricts rows.
 psql "$DATABASE_URL" -q -c "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated, service_role; GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;" >/dev/null
 # Phase A: re-apply the event-log revokes, which the blanket grant above undoes.
-psql "$DATABASE_URL" -q -v ON_ERROR_STOP=1 -c "SELECT workforce_apply_privileges();" >/dev/null 2>&1 || true
+psql "$DATABASE_URL" -q -c "SELECT workforce_apply_delegation_privileges();" >/dev/null 2>&1 \
+  || psql "$DATABASE_URL" -q -c "SELECT workforce_apply_privileges();" >/dev/null 2>&1 || true
 
 printf '%s\n' "${failed[@]}"
 rm -f "/tmp/mig_err_$$"

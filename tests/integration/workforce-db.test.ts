@@ -1,5 +1,5 @@
 /**
- * Phase A: runs tests/sql/workforce_phase_a_test.sql against a LOCAL scratch
+ * Runs tests/sql/workforce_phase_a_test.sql and workforce_delegation_test.sql against a LOCAL scratch
  * Postgres prepared by scripts/apply-migrations-local.sh.
  *
  * Skipped unless WORKFORCE_TEST_DATABASE_URL is set. Refuses any host other
@@ -16,8 +16,11 @@ const url = process.env.WORKFORCE_TEST_DATABASE_URL
 const isLocal = !!url && /@(localhost|127\.0\.0\.1)(:\d+)?\//.test(url)
 
 describe.skipIf(!isLocal)('workforce Phase A database enforcement', () => {
-  it('passes every check in workforce_phase_a_test.sql', () => {
-    const file = path.resolve(__dirname, '../sql/workforce_phase_a_test.sql')
+  it.each([
+    ['workforce_phase_a_test.sql', 'WORKFORCE PHASE A: ALL CHECKS PASSED'],
+    ['workforce_delegation_test.sql', 'WORKFORCE DELEGATION: ALL CHECKS PASSED'],
+  ])('passes every check in %s', (name, marker) => {
+    const file = path.resolve(__dirname, '../sql', name)
     let output = ''
     try {
       output = execFileSync('psql', [url!, '-q', '-v', 'ON_ERROR_STOP=1', '-f', file], {
@@ -27,6 +30,6 @@ describe.skipIf(!isLocal)('workforce Phase A database enforcement', () => {
       const failure = String(e.stderr ?? '').split('\n').find((l) => l.includes('FAIL') || l.includes('ERROR'))
       throw new Error(failure ?? 'workforce SQL suite failed')
     }
-    expect(output).toContain('WORKFORCE PHASE A: ALL CHECKS PASSED')
+    expect(output).toContain(marker)
   }, 60_000)
 })

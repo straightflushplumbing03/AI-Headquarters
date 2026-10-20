@@ -49,6 +49,7 @@ export class WorkforceError extends Error {
 const ERROR_MAP: Array<[RegExp, number, string]> = [
   [/WORKFORCE_FORBIDDEN|APPROVAL_FORBIDDEN|EVENT_FORBIDDEN|permission denied/i, 403, 'forbidden'],
   [/NOT_FOUND/i, 404, 'not_found'],
+  [/violates check constraint/i, 400, 'invalid_request'],
   [/TASK_TRANSITION_REJECTED|TASK_FIELD_PROTECTED|EVENT_IMMUTABLE/i, 409, 'conflict'],
   [/INVALID_[A-Z]+/i, 400, 'invalid_request'],
 ]
@@ -231,5 +232,66 @@ export async function verifyDeliverable(
 ): Promise<{ ok: true; event_id?: string } | Denial> {
   return call(client, 'workforce_verify_deliverable', {
     p_deliverable_id: deliverableId, p_method: method, p_evidence: evidence,
+  })
+}
+
+// ---------------------------------------------------------------- delegated approval (migration 026)
+
+export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
+export type PolicyCategory =
+  | 'general' | 'website' | 'seo' | 'content' | 'advertising' | 'spending' | 'legal'
+  | 'customer_data' | 'security' | 'production' | 'irreversible'
+
+/** Owner/admin only. Spending, legal, customer data, security, production and irreversible stay owner-only. */
+export async function setActionPolicy(
+  client: WorkforceClient,
+  args: { organizationId: string; tool: string; resource?: string; riskFloor: RiskLevel; ownerOnly: boolean; category?: PolicyCategory },
+): Promise<{ ok: true; policy_id: string }> {
+  return call(client, 'workforce_set_action_policy', {
+    p_organization_id: args.organizationId, p_tool: args.tool, p_resource: args.resource ?? '*',
+    p_risk_floor: args.riskFloor, p_owner_only: args.ownerOnly, p_category: args.category ?? 'general',
+  })
+}
+
+/** Owner/admin only. Agents can be delegated low or medium risk authority, never more. */
+export async function grantApprovalDelegation(
+  client: WorkforceClient,
+  args: { agentId: string; tool: string; resource?: string; maxRisk: 'low' | 'medium'; maxCostUsd: number; expiresAt?: string },
+): Promise<{ ok: true; delegation_id: string }> {
+  return call(client, 'workforce_grant_approval_delegation', {
+    p_delegate_agent_id: args.agentId, p_tool: args.tool, p_resource: args.resource ?? '*',
+    p_max_risk: args.maxRisk, p_max_cost_usd: args.maxCostUsd, p_expires_at: args.expiresAt ?? null,
+  })
+}
+
+export async function revokeApprovalDelegation(client: WorkforceClient, delegationId: string): Promise<{ ok: true }> {
+  return call(client, 'workforce_revoke_approval_delegation', { p_delegation_id: delegationId })
+}
+
+/** Executor: the requesting agent attaches its business case to a pending approval. */
+export async function justifyApproval(
+  client: WorkforceClient,
+  args: { approvalId: string; agentId: string; businessJustification: string; expectedBenefit: string;
+          declaredRisk: RiskLevel; estimatedCostUsd: number; rollbackPlan: string },
+): Promise<{ ok: true } | Denial> {
+  return call(client, 'workforce_justify_approval', {
+    p_approval_id: args.approvalId, p_agent_id: args.agentId,
+    p_business_justification: args.businessJustification, p_expected_benefit: args.expectedBenefit,
+    p_declared_risk: args.declaredRisk, p_estimated_cost_usd: args.estimatedCostUsd, p_rollback_plan: args.rollbackPlan,
+  })
+}
+
+/**
+ * Executor: a delegated reviewer agent decides. Anything outside its configured
+ * authority comes back as { ok: false, reason: 'escalated', detail } and is left
+ * pending for the owner.
+ */
+export async function agentReviewApproval(
+  client: WorkforceClient,
+  args: { approvalId: string; reviewerAgentId: string; decision: 'approved' | 'rejected' | 'escalated'; reviewNotes: string },
+): Promise<{ ok: true; decision: string; effective_risk: RiskLevel } | Denial> {
+  return call(client, 'workforce_agent_review_approval', {
+    p_approval_id: args.approvalId, p_reviewer_agent_id: args.reviewerAgentId,
+    p_decision: args.decision, p_review_notes: args.reviewNotes,
   })
 }
