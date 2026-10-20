@@ -13,7 +13,8 @@ All scheduled work goes through **one** engine. There is no second scheduler and
 no second approval system to learn.
 
 ```
-Vercel Cron: * * * * *  ──►  POST /api/jobs/tick  (Authorization: Bearer $CRON_SECRET)
+Vercel Cron: 0 14 * * *            ──►  GET  /api/jobs/tick  (Authorization: Bearer $CRON_SECRET)
+GitHub Actions jobs-tick (15 min) ──►  POST /api/jobs/tick  (optional; needs repo secrets)
                                    │
                                    ├─ MaintenanceScheduler  (approval sweeps, embedding backfill,
                                    │                         budget reconciliation)
@@ -23,9 +24,15 @@ Vercel Cron: * * * * *  ──►  POST /api/jobs/tick  (Authorization: Bearer $
 
 - The tick endpoint **fails closed**: with no `CRON_SECRET` it returns 503 and
   does nothing. This is intentional — it can never run unauthenticated.
-- Because the tick runs every minute, "daily" and "weekly" work is made
-  idempotent with **bucket keys** (`authority-query-YYYY-MM-DD`, etc.). Running
-  the tick 1,440 times a day still produces **at most one** of each job per day.
+- **Schedule (2026-10-20):** Vercel Hobby rejects any cron more frequent than daily, and
+  the old `* * * * *` entry failed every deployment from 2026-09-11 on. Vercel now ticks
+  once a day at 14:00 UTC (lands 06:00–07:59 Pacific in both DST states, after the
+  06:00 gate). `.github/workflows/jobs-tick.yml` adds a tick every 15 minutes once the
+  `JOBS_TICK_URL` and `CRON_SECRET` repository secrets are set; on a Pro plan the Vercel
+  cron can go back to `* * * * *` instead.
+- However often the tick runs, "daily" and "weekly" work is idempotent with **bucket
+  keys** (`authority-query-YYYY-MM-DD`, etc.), so it produces **at most one** of each
+  job per day.
 - **Retries do not duplicate work:** the enqueue is an upsert on
   `(organization_id, job_type, idempotency_key)`, so a re-scheduled job with the
   same key is a no-op.
