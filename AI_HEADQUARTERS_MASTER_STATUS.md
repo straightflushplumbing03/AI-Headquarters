@@ -13,6 +13,8 @@
   (`intelligence-hq/ga4-and-repo-status`): Google Analytics 4 adapter and a
   read-only GitHub repository-status adapter. Both new integrations are
   credential-gated and collect nothing until credentials are supplied.
+- **2026-10-20** — Vercel deployments fixed and merged (PR #21): daily cron at 14:00 UTC,
+  Node 22, GET on `/api/jobs/tick`, optional 15-minute GitHub Actions tick.
 - **2026-10-20** — Phase A workforce core built on branch `phase-a/workforce-core`
   (local commit, not pushed, not applied to any hosted database). See
   "Phase A workforce core" below.
@@ -110,7 +112,7 @@ Do not use old README badges or statements such as “production ready,” “al
 |---|---|---|---|
 | P0 | Establish one trusted project status and backlog | This document is the proposed starting point; merge it after review | This file is merged and referenced by the README / handoff |
 | P0 | Review open pull requests and stale Copilot work | PR #15 merged 2026-10-19 (`d9c226c`). PR #18 open (GA4 + read-only repo status). Older WIP Copilot PRs (#2, #4, #5, #6, #7) still open | Every PR is marked merge, revise, or close with a reason; no PR is merged just to tidy the list |
-| P0 | Confirm the hosting deployment is healthy | Handoff notes a previous Vercel deployment problem tied to missing `NEXT_PUBLIC_SUPABASE_*` environment variables; current status must be checked | Successful deployment plus authenticated smoke test |
+| P0 | Confirm the hosting deployment is healthy | **Deployments restored 2026-10-20 (PR #21).** Every deploy from 2026-09-11 failed: every-minute cron (Hobby allows daily), Node 20 pin (disabled by Vercel 2026-10-01), and the tick route had no GET for Vercel Cron. All six linked Vercel projects now deploy from `main`. Authenticated smoke test not yet done | Authenticated smoke test on production; `CRON_SECRET` confirmed set |
 | P0 | Verify database migrations and tenant isolation on a dedicated test database | Live hosted Supabase verification was previously blocked / unverified | `npm run test:live` and RLS probes pass against a separate test project, never production |
 | P0 | Run a real AI request through provider → parser → persisted result | No provider key / real parsed response was recorded in the handoff at the time of the audit | One successful, repeatable test query with output stored and errors handled |
 | P0 | Configure scheduled job execution | `/api/jobs/tick` requires `CRON_SECRET`; current deployment configuration must be verified | Authenticated cron tick succeeds; job is persisted, claimed, completed, and visible in logs |
