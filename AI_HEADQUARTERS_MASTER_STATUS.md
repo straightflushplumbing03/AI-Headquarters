@@ -46,8 +46,10 @@ Tests:
 | Suite | Ran? | Result |
 |---|---|---|
 | `tests/sql/workforce_phase_a_test.sql` (84 checks, real `authenticated`/`service_role`/`anon` roles, local Postgres 16) | Yes, on an existing-chain DB and a fresh DB | 84/84 pass |
-| `tests/unit/workforce-routes.test.ts` (vitest) | **No** — npm registry blocked in the build session, `node_modules` could not be installed | Not run |
-| `tests/integration/workforce-db.test.ts` (vitest wrapper for the SQL suite) | **No** — same reason | Not run |
+| `tests/unit/workforce-routes.test.ts` (vitest) | Yes (2026-10-20) | 22/22 pass |
+| `tests/integration/workforce-db.test.ts` (vitest wrapper for both SQL suites, local Postgres) | Yes (2026-10-20) | 2/2 pass |
+| Full `npx vitest run` | Yes (2026-10-20) | 306 pass, 17 skipped (live-DB suites need credentials), 0 fail |
+| `npx tsc --noEmit` / `next lint` on changed files | Yes (2026-10-20) | 0 errors / 0 warnings |
 
 Known limits / not done:
 
@@ -77,7 +79,7 @@ Known limits / not done:
   authority is escalated (left pending for the owner) with the reason recorded. Delegated approvals
   are re-checked at execution time and stop working if the delegation is revoked or expires.
 - Tests: `tests/sql/workforce_delegation_test.sql` 42/42 pass; Phase A suite still 84/84 after 026.
-  `tests/unit/workforce-autonomy-route.test.ts` written, not run (npm registry blocked).
+  `tests/unit/workforce-autonomy-route.test.ts` 5/5 pass.
 - Not yet built: a UI for owners to manage policies/delegations, and an agent runner that calls
   justify/review automatically.
 

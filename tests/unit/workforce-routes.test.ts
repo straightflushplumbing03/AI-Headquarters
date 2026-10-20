@@ -56,7 +56,9 @@ const req = (body: unknown) =>
 
 const validTask = { organizationId: ORG, agentId: AGENT, title: 'Weekly SEO report', requiredTool: 'report.write' }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('POST /api/workforce/tasks', () => {
   it('returns 401 without a session and never calls the engine', async () => {

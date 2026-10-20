@@ -21,7 +21,9 @@ function client(user: { id: string } | null, reply: { data: any; error: any } = 
 }
 const req = (b: unknown) => ({ json: async () => b }) as unknown as NextRequest
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('POST /api/workforce/autonomy', () => {
   it('401 without a session', async () => {
