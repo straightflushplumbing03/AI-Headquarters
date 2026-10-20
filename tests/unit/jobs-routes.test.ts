@@ -52,7 +52,7 @@ vi.mock('@/lib/jobs/maintenance', async (importOriginal) => {
 
 import { createClient } from '@/lib/supabase/server'
 import { POST as enqueueRoute } from '@/app/api/jobs/enqueue/route'
-import { POST as tickRoute } from '@/app/api/jobs/tick/route'
+import { POST as tickRoute, GET as tickGetRoute } from '@/app/api/jobs/tick/route'
 import type { NextRequest } from 'next/server'
 
 function setupAuth(opts: { user: { id: string } | null; member: { id: string } | null }) {
@@ -212,6 +212,19 @@ describe('POST /api/jobs/tick', () => {
         })
       )
       expect(wrongAuth.status).toBe(401)
+    } finally {
+      restore()
+    }
+  })
+
+  it('GET (how Vercel Cron calls the route) uses the same fail-closed auth', async () => {
+    expect(tickGetRoute).toBe(tickRoute)
+    process.env.CRON_SECRET = 's3cret'
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon'
+    try {
+      const noAuth = await tickGetRoute(makeRequest('http://localhost/api/jobs/tick'))
+      expect(noAuth.status).toBe(401)
     } finally {
       restore()
     }
