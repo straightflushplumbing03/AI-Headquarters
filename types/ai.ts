@@ -1,5 +1,5 @@
 export interface AIProviderConfig {
-  provider: 'openai' | 'anthropic' | 'pending'
+  provider: 'openai' | 'anthropic' | 'gateway' | 'pending'
   model: string
   apiKey?: string
   isConfigured: boolean
@@ -21,10 +21,16 @@ export interface AIExecutionResult {
   content: string
   inputTokens: number
   outputTokens: number
+  /**
+   * Input tokens served from the vendor prompt cache. Reported separately
+   * because they bill at a discount, so folding them into inputTokens would
+   * overstate cost. Absent when the provider reports no cache detail.
+   */
+  cachedInputTokens?: number
   estimatedCost: number
   actualCost: number
   executionTimeMs: number
-  provider?: 'openai' | 'anthropic'
+  provider?: 'openai' | 'anthropic' | 'gateway'
   model?: string
   error?: string
   errorType?: string

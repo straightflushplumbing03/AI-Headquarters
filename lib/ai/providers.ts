@@ -1,8 +1,9 @@
 import type { AIExecutionRequest, AIExecutionResult } from '@/types/ai'
-import { calculateModelCost, ProviderName, ModelName, getDefaultModel, PROVIDER_PRICING } from './config/pricing'
+import { calculateModelCost, ProviderName, ModelName, getDefaultModel, getModelPricing, PROVIDER_PRICING } from './config/pricing'
 import { generateText } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createAnthropic } from '@ai-sdk/anthropic'
+import { createGateway } from '@ai-sdk/gateway'
 
 /**
  * Hard failsafe: the deterministic FakeProvider is ONLY selectable when the
@@ -33,11 +34,23 @@ export abstract class AIProvider {
 }
 
 /** Map AI SDK usage (v5: inputTokens/outputTokens; v4: promptTokens/completionTokens) to the repo's token fields. */
-function usageTokens(usage: unknown): { inputTokens: number; outputTokens: number } {
+function usageTokens(usage: unknown): {
+  inputTokens: number
+  outputTokens: number
+  cachedInputTokens: number
+} {
   const u = (usage ?? {}) as Record<string, unknown>
   const input = Number(u.inputTokens ?? u.promptTokens ?? 0)
   const output = Number(u.outputTokens ?? u.completionTokens ?? 0)
-  return { inputTokens: Number.isFinite(input) ? input : 0, outputTokens: Number.isFinite(output) ? output : 0 }
+  // cacheReadTokens is nested under inputTokenDetails in AI SDK v7 and absent
+  // on providers that do not report cache detail.
+  const details = (u.inputTokenDetails ?? {}) as Record<string, unknown>
+  const cached = Number(details.cacheReadTokens ?? 0)
+  return {
+    inputTokens: Number.isFinite(input) ? input : 0,
+    outputTokens: Number.isFinite(output) ? output : 0,
+    cachedInputTokens: Number.isFinite(cached) && cached > 0 ? cached : 0,
+  }
 }
 
 /** Map a thrown error to the repo's errorType semantics. */
@@ -98,7 +111,7 @@ export class OpenAIProvider extends AIProvider {
       })
 
       const executionTimeMs = Date.now() - startTime
-      const { inputTokens, outputTokens } = usageTokens(result.usage)
+      const { inputTokens, outputTokens, cachedInputTokens } = usageTokens(result.usage)
       if (!inputTokens && !outputTokens) {
         return {
           success: false,
@@ -115,13 +128,14 @@ export class OpenAIProvider extends AIProvider {
         }
       }
 
-      const actualCost = calculateModelCost('openai', this.model, inputTokens, outputTokens)
+      const actualCost = calculateModelCost('openai', this.model, inputTokens, outputTokens, cachedInputTokens)
 
       return {
         success: true,
         content: result.text || '',
         inputTokens,
         outputTokens,
+        ...(cachedInputTokens > 0 ? { cachedInputTokens } : {}),
         estimatedCost: actualCost,
         actualCost,
         executionTimeMs,
@@ -202,7 +216,7 @@ export class AnthropicProvider extends AIProvider {
       })
 
       const executionTimeMs = Date.now() - startTime
-      const { inputTokens, outputTokens } = usageTokens(result.usage)
+      const { inputTokens, outputTokens, cachedInputTokens } = usageTokens(result.usage)
       if (!inputTokens && !outputTokens) {
         return {
           success: false,
@@ -219,13 +233,14 @@ export class AnthropicProvider extends AIProvider {
         }
       }
 
-      const actualCost = calculateModelCost('anthropic', this.model, inputTokens, outputTokens)
+      const actualCost = calculateModelCost('anthropic', this.model, inputTokens, outputTokens, cachedInputTokens)
 
       return {
         success: true,
         content: result.text || '',
         inputTokens,
         outputTokens,
+        ...(cachedInputTokens > 0 ? { cachedInputTokens } : {}),
         estimatedCost: actualCost,
         actualCost,
         executionTimeMs,
@@ -255,6 +270,115 @@ export class AnthropicProvider extends AIProvider {
   }
 }
 
+/**
+ * Vercel AI Gateway.
+ *
+ * A routing layer, not a model vendor: it fronts many upstream models behind
+ * one key and adds no markup of its own. Two consequences shape this class:
+ *
+ *   * Cost must come from the per-model pricing table. The gateway bills at
+ *     upstream rates, so a model we have no rate for cannot be costed. Such a
+ *     call is reported as `model_not_priced` rather than costed at zero —
+ *     recording zero would spend real money that never reaches the budget
+ *     controls, which is exactly the failure this class exists to avoid.
+ *   * Routing is a privacy decision. Prompts pass through the gateway, so it is
+ *     opt-in via AI_GATEWAY_API_KEY and never auto-selected ahead of a provider
+ *     the operator has configured directly.
+ */
+export class GatewayProvider extends AIProvider {
+  name: ProviderName = 'gateway'
+  isConfigured: boolean
+  status: 'active' | 'pending' | 'error'
+  errorMessage?: string
+  private apiKey?: string
+  private model: ModelName
+
+  /** The resolved gateway model id, e.g. "moonshotai/kimi-k3". */
+  get modelId(): ModelName {
+    return this.model
+  }
+
+  constructor(apiKey?: string, model?: ModelName) {
+    super()
+    this.apiKey = apiKey
+    this.model = model || getDefaultModel('gateway')
+    this.isConfigured = !!apiKey
+    this.status = apiKey ? 'active' : 'pending'
+    if (!apiKey) this.errorMessage = 'AI_GATEWAY_API_KEY not configured'
+  }
+
+  async execute(request: AIExecutionRequest): Promise<AIExecutionResult> {
+    if (!this.isConfigured) {
+      return this.failure('AI Gateway not configured', 'provider_not_configured', 0)
+    }
+
+    // Refuse before spending: an unpriced model would produce an untracked cost.
+    if (!getModelPricing('gateway', this.model)) {
+      return this.failure(
+        `No pricing configured for gateway model "${this.model}". Add it to PROVIDER_PRICING before use so spend stays tracked.`,
+        'model_not_priced',
+        0
+      )
+    }
+
+    const startTime = Date.now()
+    try {
+      const gateway = createGateway({ apiKey: this.apiKey })
+      const result = await generateText({
+        model: gateway(this.model),
+        system: request.systemPrompt,
+        prompt: request.userMessage,
+        maxOutputTokens: request.maxTokens || 2000,
+        temperature: request.temperature ?? 0.7,
+      })
+
+      const executionTimeMs = Date.now() - startTime
+      const { inputTokens, outputTokens, cachedInputTokens } = usageTokens(result.usage)
+      if (!inputTokens && !outputTokens) {
+        return this.failure('No usage data', 'invalid_response', executionTimeMs)
+      }
+
+      const actualCost = calculateModelCost('gateway', this.model, inputTokens, outputTokens, cachedInputTokens)
+
+      return {
+        success: true,
+        content: result.text || '',
+        inputTokens,
+        outputTokens,
+        ...(cachedInputTokens > 0 ? { cachedInputTokens } : {}),
+        estimatedCost: actualCost,
+        actualCost,
+        executionTimeMs,
+        provider: 'gateway',
+        model: this.model,
+      }
+    } catch (error: unknown) {
+      const { message, errorType } = classifyError(error)
+      return this.failure(message, errorType, Date.now() - startTime)
+    }
+  }
+
+  private failure(error: string, errorType: string, executionTimeMs: number): AIExecutionResult {
+    return {
+      success: false,
+      content: '',
+      inputTokens: 0,
+      outputTokens: 0,
+      estimatedCost: 0,
+      actualCost: 0,
+      executionTimeMs,
+      provider: 'gateway',
+      model: this.model,
+      error,
+      errorType,
+    }
+  }
+
+  estimateCost(inputTokens: number, outputTokens: number): number {
+    return calculateModelCost('gateway', this.model, inputTokens, outputTokens)
+  }
+}
+
 export class PendingProvider extends AIProvider {
   name: ProviderName = 'openai'
   isConfigured = false
@@ -264,7 +388,7 @@ export class PendingProvider extends AIProvider {
   async execute(_request: AIExecutionRequest): Promise<AIExecutionResult> {
     return {
       success: false,
-      content: '[BUSINESS BRAIN] Configure OPENAI_API_KEY or ANTHROPIC_API_KEY',
+      content: '[BUSINESS BRAIN] Configure OPENAI_API_KEY, ANTHROPIC_API_KEY or AI_GATEWAY_API_KEY',
       inputTokens: 0,
       outputTokens: 0,
       estimatedCost: 0,
@@ -346,10 +470,21 @@ export function getAIProvider(preferredProvider?: ProviderName): AIProvider {
 
   const openaiKey = process.env.OPENAI_API_KEY
   const anthropicKey = process.env.ANTHROPIC_API_KEY
+  const gatewayKey = process.env.AI_GATEWAY_API_KEY
 
   if (preferredProvider === 'openai' && openaiKey) return new OpenAIProvider(openaiKey)
   if (preferredProvider === 'anthropic' && anthropicKey) return new AnthropicProvider(anthropicKey)
+  if (preferredProvider === 'gateway' && gatewayKey) return new GatewayProvider(gatewayKey, gatewayModel())
   if (openaiKey) return new OpenAIProvider(openaiKey)
   if (anthropicKey) return new AnthropicProvider(anthropicKey)
+  // Gateway is the last resort: it routes prompts through a third party, so a
+  // directly-configured provider always wins.
+  if (gatewayKey) return new GatewayProvider(gatewayKey, gatewayModel())
   return new PendingProvider()
+}
+
+/** Operator override for the gateway model id, e.g. "moonshotai/kimi-k3". */
+function gatewayModel(): ModelName | undefined {
+  const configured = process.env.AUTHORITY_GATEWAY_MODEL
+  return configured && configured.trim().length > 0 ? configured.trim() : undefined
 }
