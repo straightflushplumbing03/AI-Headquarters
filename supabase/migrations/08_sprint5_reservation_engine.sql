@@ -165,6 +165,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON budget_reservations TO service_role;
 --   latest committed state - combined reservations can never exceed
 --   monthly_budget - current_spend.
 -- =====================================================================
+-- Drop any prior definition of this exact signature (e.g. the live-schema
+-- variant recreated by 09_fix_reserve_budget_drift.sql) so the fixpoint
+-- loop converges: CREATE OR REPLACE cannot change an OUT-column list.
+DROP FUNCTION IF EXISTS public.reserve_budget(uuid, numeric, text, interval);
+
 CREATE OR REPLACE FUNCTION reserve_budget(
   p_organization_id uuid,
   p_amount numeric,

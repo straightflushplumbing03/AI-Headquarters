@@ -73,6 +73,7 @@ CREATE INDEX IF NOT EXISTS idx_budget_reservations_org_created
 
 ALTER TABLE budget_reservations ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS budget_reservations_org_isolation ON budget_reservations;
 CREATE POLICY budget_reservations_org_isolation ON budget_reservations
   FOR ALL USING (
     organization_id IN (

@@ -24,10 +24,21 @@
 
 BEGIN;
 
-ALTER TABLE budget_reservations
-  ALTER COLUMN reserved_amount TYPE NUMERIC(12, 6);
-
-ALTER TABLE budget_reservations
-  ALTER COLUMN settled_amount TYPE NUMERIC(12, 6);
+-- Guarded: the earliest lineage of budget_reservations (08 / 012) has no
+-- reserved_amount / settled_amount. Widen only when the column exists, so this
+-- migration is safe to run at any point in the fixpoint loop.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='budget_reservations'
+               AND column_name='reserved_amount') THEN
+    ALTER TABLE budget_reservations ALTER COLUMN reserved_amount TYPE NUMERIC(12, 6);
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='budget_reservations'
+               AND column_name='settled_amount') THEN
+    ALTER TABLE budget_reservations ALTER COLUMN settled_amount TYPE NUMERIC(12, 6);
+  END IF;
+END $$;
 
 COMMIT;

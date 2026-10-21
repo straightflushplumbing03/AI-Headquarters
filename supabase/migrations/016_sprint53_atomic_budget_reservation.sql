@@ -20,6 +20,58 @@
 -- databases both converge to the same schema.
 
 -- ============================================================================
+-- 0. Reconcile the two budget_reservations lineages.
+--
+-- Two migrations CREATE this table: 08_sprint5_reservation_engine.sql (amount /
+-- idempotency_key / expires_at / pending-style status) and
+-- 012_sprint51_kill_switches_budget.sql (reserved_amount / settled_amount …).
+-- On a fresh database 08 wins the CREATE (it sorts before 012), while every
+-- RPC that exists after this migration — reserve_budget_idempotent,
+-- settle_budget_clamped, release_stale_budget_reservations, and 09's
+-- reserve_budget — reads and writes the 012/live column set and the
+-- 'reserved' | 'settled' | 'released' vocabulary. Without this block a
+-- from-scratch build produces a table the application's own RPCs cannot use
+-- (column "reserved_amount" does not exist). Converge both lineages to the
+-- one shape the code expects. Additive; drops no data and no column.
+-- ============================================================================
+ALTER TABLE budget_reservations
+  ADD COLUMN IF NOT EXISTS reserved_amount NUMERIC(12, 6),
+  ADD COLUMN IF NOT EXISTS settled_amount NUMERIC(12, 6),
+  ADD COLUMN IF NOT EXISTS settled_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS agent_id uuid REFERENCES agents(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS task_id uuid REFERENCES tasks(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS reference TEXT;
+
+-- The 08/012 lineage marks amount / idempotency_key / expires_at NOT NULL; the
+-- idempotent RPCs never write them, so they must be optional here.
+ALTER TABLE budget_reservations ALTER COLUMN amount DROP NOT NULL;
+ALTER TABLE budget_reservations ALTER COLUMN idempotency_key DROP NOT NULL;
+ALTER TABLE budget_reservations ALTER COLUMN expires_at DROP NOT NULL;
+
+-- Replace whichever status CHECK the winning CREATE installed with the
+-- vocabulary every post-016 RPC uses.
+ALTER TABLE budget_reservations
+  DROP CONSTRAINT IF EXISTS budget_reservations_status_check;
+ALTER TABLE budget_reservations
+  ADD CONSTRAINT budget_reservations_status_check
+  CHECK (status IN ('reserved', 'settled', 'released'));
+
+-- 012's lineage constrains money to be non-negative; keep that invariant when
+-- the 08 lineage won the CREATE. Guarded so a re-run is a no-op.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.budget_reservations'::regclass
+      AND conname = 'budget_reservations_reserved_amount_check'
+  ) THEN
+    ALTER TABLE budget_reservations
+      ADD CONSTRAINT budget_reservations_reserved_amount_check
+      CHECK (reserved_amount >= 0);
+  END IF;
+END $$;
+
+-- ============================================================================
 -- 1. Action-tied idempotency for reservations
 -- ============================================================================
 ALTER TABLE budget_reservations
