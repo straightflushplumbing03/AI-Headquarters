@@ -61,4 +61,21 @@ describe('POST /api/workforce/autonomy', () => {
     client({ id: 'u' }, { data: null, error: { message: 'new row for relation "workforce_action_policies" violates check constraint "workforce_action_policies_sensitive_owner_only"' } })
     expect((await POST(req({ action: 'set_policy', organizationId: ORG, tool: 'ads.budget', riskFloor: 'low', ownerOnly: false, category: 'spending' }))).status).toBe(400)
   })
+
+  it('grants an agent permission through the enforced function, never defaulting approval off', async () => {
+    const c = client({ id: 'u' }, { data: { ok: true, permission_id: 'p1' }, error: null })
+    expect((await POST(req({ action: 'grant_permission', agentId: AGENT, tool: 'website.edit' }))).status).toBe(400)
+    expect(c.rpc).not.toHaveBeenCalled()
+    const res = await POST(req({ action: 'grant_permission', agentId: AGENT, tool: 'website.edit', resource: 'site:main', requiresApproval: true }))
+    expect(res.status).toBe(200)
+    expect(c.rpc).toHaveBeenCalledWith('workforce_grant_permission', {
+      p_agent_id: AGENT, p_tool: 'website.edit', p_resource: 'site:main', p_requires_approval: true, p_expires_at: null,
+    })
+  })
+
+  it('revokes a permission', async () => {
+    const c = client({ id: 'u' })
+    expect((await POST(req({ action: 'revoke_permission', permissionId: AGENT }))).status).toBe(200)
+    expect(c.rpc).toHaveBeenCalledWith('workforce_revoke_permission', { p_permission_id: AGENT })
+  })
 })

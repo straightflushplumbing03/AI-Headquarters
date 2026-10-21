@@ -209,6 +209,23 @@ RESET ROLE; SELECT wf_as('authenticated', 'u_owner'); SET ROLE authenticated;
 SELECT wf_expect_error(format($$UPDATE approval_requests SET decided_by_type = 'agent' WHERE id = %L$$, ctx('ap_ads')),
                        'APPROVAL_FORBIDDEN', 'D7e decision records cannot be rewritten');
 
+-- ================================================================ D8 settings panel visibility
+RESET ROLE; SELECT wf_as(NULL, NULL);
+SELECT ctx_put('u_outsider', gen_random_uuid());
+INSERT INTO auth.users (id) VALUES (ctx('u_outsider'));
+SELECT wf_as('authenticated', 'u_member'); SET ROLE authenticated;
+SELECT wf_check((SELECT count(*) > 0 FROM workforce_action_policies WHERE organization_id = ctx('org'))
+                AND (SELECT count(*) > 0 FROM workforce_approval_delegations WHERE organization_id = ctx('org')),
+                'D8a org members can read policies and delegations');
+SELECT wf_expect_error(format($$UPDATE workforce_action_policies SET owner_only = false WHERE organization_id = %L$$, ctx('org')),
+                       'permission denied', 'D8b members cannot edit policies directly');
+RESET ROLE; SELECT wf_as('authenticated', 'u_outsider'); SET ROLE authenticated;
+SELECT wf_check((SELECT count(*) FROM workforce_action_policies WHERE organization_id = ctx('org')) = 0
+                AND (SELECT count(*) FROM workforce_approval_delegations WHERE organization_id = ctx('org')) = 0,
+                'D8c outsiders see no policies or delegations');
+RESET ROLE; SELECT wf_as(NULL, NULL);
+DELETE FROM auth.users WHERE id = ctx('u_outsider');
+
 -- ---------------------------------------------------------------- cleanup
 RESET ROLE; SELECT wf_as(NULL, NULL);
 DELETE FROM organizations WHERE id = ctx('org');

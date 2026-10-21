@@ -82,8 +82,12 @@ Known limits / not done:
   are re-checked at execution time and stop working if the delegation is revoked or expires.
 - Tests: `tests/sql/workforce_delegation_test.sql` 42/42 pass; Phase A suite still 84/84 after 026.
   `tests/unit/workforce-autonomy-route.test.ts` 5/5 pass.
-- Not yet built: a UI for owners to manage policies/delegations, and an agent runner that calls
-  justify/review automatically.
+- Owner UI: **Settings → Agent autonomy** (grant/revoke permissions, set policies, grant/revoke
+  delegations), backed by the same owner-only route. Delegation suite now 45/45.
+- Not yet built: an agent runner that calls justify/review automatically.
+- Compatibility check before production: no live code updates tasks in a way the new rules reject;
+  the existing approval-expiry sweeps only match rows with `response_deadline`, which workforce
+  approvals never set.
 
 Local verification: `DATABASE_URL=postgres://…@localhost/<scratch> scripts/apply-migrations-local.sh`
 then `psql <url> -f tests/sql/workforce_phase_a_test.sql`.

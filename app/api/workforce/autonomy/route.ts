@@ -6,6 +6,8 @@
  *   { action: 'set_policy', organizationId, tool, resource?, riskFloor, ownerOnly, category? }
  *   { action: 'grant_delegation', agentId, tool, resource?, maxRisk: 'low'|'medium', maxCostUsd, expiresAt? }
  *   { action: 'revoke_delegation', delegationId }
+ *   { action: 'grant_permission', agentId, tool, resource?, requiresApproval, expiresAt? }
+ *   { action: 'revoke_permission', permissionId }
  *
  * Runs under the caller's own session; the database allows only owners/admins
  * of the organization and records every change as an event. Agents (service
@@ -15,7 +17,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import {
-  setActionPolicy, grantApprovalDelegation, revokeApprovalDelegation, WorkforceError,
+  setActionPolicy, grantApprovalDelegation, revokeApprovalDelegation,
+  grantPermission, revokePermission, WorkforceError,
   type RiskLevel, type PolicyCategory,
 } from '@/lib/workforce/service'
 
@@ -68,8 +71,19 @@ export async function POST(request: NextRequest) {
         if (!UUID.test(String(b.delegationId))) return bad('delegationId is required')
         return NextResponse.json(await revokeApprovalDelegation(supabase as any, b.delegationId))
       }
+      case 'grant_permission': {
+        if (!UUID.test(String(b.agentId)) || !str(b.tool) || !optStr(b.resource)) return bad('agentId and tool are required')
+        if (typeof b.requiresApproval !== 'boolean') return bad('requiresApproval must be true or false')
+        if (b.expiresAt !== undefined && Number.isNaN(Date.parse(b.expiresAt))) return bad('expiresAt must be a date')
+        return NextResponse.json(await grantPermission(
+          supabase as any, b.agentId, b.tool, b.resource ?? '*', b.requiresApproval, b.expiresAt))
+      }
+      case 'revoke_permission': {
+        if (!UUID.test(String(b.permissionId))) return bad('permissionId is required')
+        return NextResponse.json(await revokePermission(supabase as any, b.permissionId))
+      }
       default:
-        return bad("action must be 'set_policy', 'grant_delegation' or 'revoke_delegation'")
+        return bad("unknown action")
     }
   } catch (e) {
     if (e instanceof WorkforceError) return NextResponse.json({ error: e.message, code: e.code }, { status: e.status })
