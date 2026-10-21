@@ -1,0 +1,18 @@
+{
+  "_note": "SYNTHETIC fast-fail case, not an observed run. Represents the narrow case the retry watchdog exists for: the platform never provisioned a sandbox and the run died early (~120 s, far below the ~1920 s ceiling), with no sandbox_id and no conversation. Every run we have actually observed carrying the 'environment_unavailable' string was in fact a budget overrun (see run-budget-overrun.json), which a retry cannot fix.",
+  "id": "0b3f8a2e-6c11-4d9a-9c0e-2f5b7a1d4e88",
+  "status": "FAILED",
+  "status_detail": {
+    "kind": "environment_unavailable",
+    "detail": "Sandbox not available",
+    "phase": "verification",
+    "transient": true
+  },
+  "error_detail": "Timed out: Sandbox not available",
+  "conversation_id": null,
+  "sandbox_id": null,
+  "current_phase": "Provisioning sandbox",
+  "started_at": "2026-10-13T13:00:01Z",
+  "timeout_at": "2026-10-13T13:32:07Z",
+  "completed_at": "2026-10-13T13:02:04Z"
+}
