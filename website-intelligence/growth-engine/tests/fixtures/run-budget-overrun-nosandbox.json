@@ -1,0 +1,17 @@
+{
+  "_note": "REAL run, 2026-10-13. The 'environment_unavailable' string is present and there is NO sandbox_id and no conversation_id, so a naive 'sandbox marker -> retry' rule would wrongly re-dispatch. It actually ran 1926 s (started_at -> timeout_at), i.e. it hit the enforced ceiling: a budget overrun, which a retry cannot fix.",
+  "id": "67e154d9-e381-4be1-aa62-3f87c98ce1f6",
+  "status": "FAILED",
+  "status_detail": {
+    "kind": "environment_unavailable",
+    "detail": "Sandbox not available",
+    "phase": "verification",
+    "transient": false
+  },
+  "error_detail": "Timed out: Sandbox not available",
+  "conversation_id": null,
+  "sandbox_id": null,
+  "current_phase": "Installing dependencies",
+  "started_at": "2026-10-13T13:00:01Z",
+  "timeout_at": "2026-10-13T13:32:07Z"
+}
