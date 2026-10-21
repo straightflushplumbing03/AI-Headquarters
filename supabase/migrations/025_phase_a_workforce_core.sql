@@ -98,7 +98,16 @@ $$;
 -- ---------------------------------------------------------------------------
 -- 1. Agents
 -- ---------------------------------------------------------------------------
+-- Hosted databases that were bootstrapped from the minimal 001 base schema
+-- lack columns the app and this migration use (verified on project
+-- znpqosbwdgrtfediqvwt, 2026-10-21). Added here, nullable or defaulted, so
+-- they are no-ops where 0000_phase0_base_schema already created them.
 ALTER TABLE agents
+  ADD COLUMN IF NOT EXISTS department_id uuid REFERENCES departments(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS role text,
+  ADD COLUMN IF NOT EXISTS description text,
+  ADD COLUMN IF NOT EXISTS status text DEFAULT 'available',
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now(),
   ADD COLUMN IF NOT EXISTS budget_daily_usd numeric(12, 4)
     CHECK (budget_daily_usd IS NULL OR budget_daily_usd >= 0);
 
@@ -106,6 +115,15 @@ ALTER TABLE agents
 -- 2. Tasks
 -- ---------------------------------------------------------------------------
 ALTER TABLE tasks
+  ADD COLUMN IF NOT EXISTS parent_task_id uuid REFERENCES tasks(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS description text,
+  ADD COLUMN IF NOT EXISTS priority text NOT NULL DEFAULT 'medium',
+  ADD COLUMN IF NOT EXISTS input jsonb,
+  ADD COLUMN IF NOT EXISTS result text,
+  ADD COLUMN IF NOT EXISTS error text,
+  ADD COLUMN IF NOT EXISTS started_at timestamptz,
+  ADD COLUMN IF NOT EXISTS completed_at timestamptz,
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now(),
   ADD COLUMN IF NOT EXISTS creator_id uuid,
   ADD COLUMN IF NOT EXISTS assigned_by_type text,
   ADD COLUMN IF NOT EXISTS assigned_by_id uuid,
