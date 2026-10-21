@@ -1,0 +1,10 @@
+{
+  "id": "c3a0e2d4474c8407b44cd144f8be6edc89493819",
+  "status": "FAILED",
+  "status_detail": {
+    "kind": "execution_error"
+  },
+  "error_detail": "KeyError: 'AUTOMATION_AGENT_PROFILE_ID'",
+  "conversation_id": "abc123",
+  "phase": "execution"
+}

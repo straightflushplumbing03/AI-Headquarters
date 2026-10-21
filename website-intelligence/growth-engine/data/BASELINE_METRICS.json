@@ -1,0 +1,62 @@
+{
+  "baseline_date": "2026-10-09",
+  "timezone": "America/Los_Angeles",
+  "environment": "OpenHands Cloud",
+  "repo": "straightflushplumbing03/-Up2datewebsiteseo",
+  "branch": "main",
+  "live_domain": "https://straightflushplumbingoc.com",
+
+  "technical_health": {
+    "crawler_accessible_pages": 0,
+    "total_pages_tested": 7,
+    "http_403_rate": 1.0,
+    "cf_mitigated_challenge": true,
+    "crawlers_blocked": ["Googlebot","Bingbot","GPTBot","OAI-SearchBot","ClaudeBot","PerplexityBot","Applebot"],
+    "dns": ["104.21.61.177","172.67.212.153"],
+    "tls_certificate": "approved, expires 2026-11-30",
+    "gh_pages_status": "built",
+    "sitemap_urls": 74,
+    "indexable_pages_reported": 74,
+    "orphans_reported_after_2026_10_07": 0,
+    "severity": "critical",
+    "primary_issue": "ISSUE-001 Cloudflare managed challenge"
+  },
+
+  "conventional_search_proxy": {
+    "platform": "brave_search",
+    "note": "NOT an AI answer engine. Recorded as conventional search only.",
+    "queries_tested": 5,
+    "straight_flush_recommended": 0,
+    "straight_flush_mentioned": 0,
+    "straight_flush_cited": 0,
+    "straight_flush_absent": 5
+  },
+
+  "ai_answer_engines": {
+    "note": "No AI answer engine could be executed in this environment. Reported as unverified, NOT as zero visibility.",
+    "chatgpt_search": "unverified - no access",
+    "claude_web_search": "unverified - no access",
+    "google_ai_overviews": "unverified - no SERP access",
+    "gemini": "unverified - no access",
+    "microsoft_copilot": "unverified - no access",
+    "grok": "unverified - no access",
+    "perplexity": "unverified - JS app, no API key"
+  },
+
+  "analytics": {
+    "google_search_console": "not_connected",
+    "google_analytics_4": "not_connected",
+    "google_business_profile": "not_connected",
+    "call_tracking": "not_connected"
+  },
+
+  "notifications": {
+    "channel_configured": false
+  },
+
+  "competitor_baseline": {
+    "tier_a": ["scottenglishplumbing.net","efficientplumbing.com","barkerandsonsplumbing.com","rotorooter.com"],
+    "tier_b_count": 25,
+    "source": "growth-engine/data/competitor_observations.jsonl"
+  }
+}
