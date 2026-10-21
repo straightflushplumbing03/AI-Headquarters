@@ -63,8 +63,13 @@ Known limits / not done:
   completed directly; the database now rejects that path.
 - Pre-existing, unrelated: `tests/sql/sprint5_validation.sql` fails on
   `budget_reservations.reserved_amount` (012 vs 08 schema conflict).
-- Hosted Supabase project `AI-Headquarters` (`fcjyfjytmtuadfnzpmmu`) has **no tables and
-  no migrations applied**. It is not the database the old handoff notes describe.
+- **Supabase projects (2026-10-20 review).** Three refs appear across the two repos:
+  | Ref | Where it appears | Evidence | Verdict |
+  |---|---|---|---|
+  | `znpqosbwdgrtfediqvwt` | `.env.local.example`, migration 09, Sprint 5.3 live verification, Supabase GitHub integration on this repo | The app was verified against it on 2026-09-11; migration 09 fixed drift found in it | **Recommended production** for this app |
+  | `lxcrqbrjezsqrowajmsz` | `.mcp.json` in both repos, website blueprint | MCP tooling config only; the handoff plan itself says "verify this ref" | Unverified; check whether it is the same data or a separate Authority project |
+  | `fcjyfjytmtuadfnzpmmu` | Connected to the build session | Created 2026-10-14, no tables, no migrations | Not production; usable as a scratch/test project |
+  Neither candidate is reachable from the build session yet; migrations 025/026 wait on that access.
 
 ### Delegated agent approval (migration 026, 2026-10-20)
 
