@@ -24,6 +24,22 @@
   the first CI that actually runs the test suite, and added a migration
   verification gate. See PR #23. Added the status checklist below.
 
+## Agent runner (2026-10-23)
+
+- `lib/workforce/runner.ts` runs queued workforce tasks on every `/api/jobs/tick` (service role only).
+  Every step goes through the enforced functions: recover stale tasks, schedule recurring work,
+  claim, authorize each action at execution time, record results, attach and verify deliverables.
+- Migration `027_workforce_runner.sql`: `workforce_next_tasks`, `workforce_requeue_stale`,
+  `workforce_activity_summary`, `workforce_schedule_recurring` (executor-only).
+- Executors (both read-only): `report.write` (workforce activity report) and `site.audit` (on-page SEO
+  check of a granted https origin, from its sitemap; same-origin only; 35 s crawl budget).
+- Recurring: an approval-free grant of `site.audit` on a site, or `report.write` on a named report,
+  yields one task per ISO week for that agent.
+- First real audit of straightflushplumbingoc.com (site files at `5e905d7`): 78 of 79 sitemap pages
+  pass; `case-studies/dana-point-kitchen-pex-shutoff-valves.html` has a 163-char meta description.
+- Tests: runner end to end on real Postgres 9/9; executor unit tests 8/8; CI now also runs the
+  workforce SQL suites and the runner test.
+
 ## Hosted database status (2026-10-23)
 
 - **Migrations 025 and 026 are applied** to Supabase project `znpqosbwdgrtfediqvwt`

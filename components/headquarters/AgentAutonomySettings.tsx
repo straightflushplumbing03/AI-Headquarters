@@ -109,6 +109,10 @@ export function AgentAutonomySettings() {
         <div>
           <h3 className="text-lg font-semibold">Permissions</h3>
           <p className="text-slate-400 text-sm">What each agent may do. With approval required, every use waits for a decision.</p>
+          <p className="text-slate-400 text-sm mt-1">
+            Granting <code>site.audit</code> on a site (for example <code>https://straightflushplumbingoc.com</code>) or{' '}
+            <code>report.write</code> on a report name, without approval, gives that agent one read-only task per week.
+          </p>
         </div>
         <div className="grid gap-3 md:grid-cols-4">
           <select className={selectClass} value={perm.agentId} onChange={(e) => setPerm({ ...perm, agentId: e.target.value })} aria-label="Agent">
