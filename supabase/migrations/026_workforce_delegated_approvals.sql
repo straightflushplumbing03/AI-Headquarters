@@ -67,21 +67,25 @@ CREATE TABLE IF NOT EXISTS workforce_approval_delegations (
 CREATE UNIQUE INDEX IF NOT EXISTS workforce_approval_delegations_active_uniq
   ON workforce_approval_delegations (delegate_agent_id, tool, resource) WHERE revoked_at IS NULL;
 
-DROP TRIGGER IF EXISTS workforce_engine_only_guard ON workforce_action_policies;
-CREATE TRIGGER workforce_engine_only_guard BEFORE INSERT OR UPDATE OR DELETE ON workforce_action_policies
+CREATE OR REPLACE TRIGGER workforce_engine_only_guard BEFORE INSERT OR UPDATE OR DELETE ON workforce_action_policies
   FOR EACH ROW EXECUTE FUNCTION workforce_engine_only_guard();
-DROP TRIGGER IF EXISTS workforce_engine_only_guard ON workforce_approval_delegations;
-CREATE TRIGGER workforce_engine_only_guard BEFORE INSERT OR UPDATE OR DELETE ON workforce_approval_delegations
+CREATE OR REPLACE TRIGGER workforce_engine_only_guard BEFORE INSERT OR UPDATE OR DELETE ON workforce_approval_delegations
   FOR EACH ROW EXECUTE FUNCTION workforce_engine_only_guard();
 
 ALTER TABLE workforce_action_policies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workforce_approval_delegations ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS workforce_action_policies_member_read ON workforce_action_policies;
-CREATE POLICY workforce_action_policies_member_read ON workforce_action_policies
+DO $pol$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'workforce_action_policies' AND policyname = 'workforce_action_policies_member_read') THEN
+    CREATE POLICY workforce_action_policies_member_read ON workforce_action_policies
   FOR SELECT TO authenticated USING (workforce_is_org_member(organization_id));
-DROP POLICY IF EXISTS workforce_approval_delegations_member_read ON workforce_approval_delegations;
-CREATE POLICY workforce_approval_delegations_member_read ON workforce_approval_delegations
+  END IF;
+END $pol$;
+DO $pol$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'workforce_approval_delegations' AND policyname = 'workforce_approval_delegations_member_read') THEN
+    CREATE POLICY workforce_approval_delegations_member_read ON workforce_approval_delegations
   FOR SELECT TO authenticated USING (workforce_is_org_member(organization_id));
+  END IF;
+END $pol$;
 
 -- ---------------------------------------------------------------------------
 -- 2. Review fields on approval requests
@@ -367,8 +371,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;
-DROP TRIGGER IF EXISTS workforce_mark_owner_decision ON approval_requests;
-CREATE TRIGGER workforce_mark_owner_decision BEFORE UPDATE ON approval_requests
+CREATE OR REPLACE TRIGGER workforce_mark_owner_decision BEFORE UPDATE ON approval_requests
   FOR EACH ROW EXECUTE FUNCTION workforce_mark_owner_decision();
 
 -- ---------------------------------------------------------------------------

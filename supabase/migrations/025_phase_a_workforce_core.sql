@@ -239,8 +239,7 @@ BEGIN
   END IF;
 END $$;
 
-DROP TRIGGER IF EXISTS workforce_activity_events_guard ON activity_events;
-CREATE TRIGGER workforce_activity_events_guard
+CREATE OR REPLACE TRIGGER workforce_activity_events_guard
   BEFORE INSERT OR UPDATE OR DELETE ON activity_events
   FOR EACH ROW EXECUTE FUNCTION workforce_activity_events_guard();
 
@@ -364,8 +363,7 @@ BEGIN
   RETURN NEW;
 END $$;
 
-DROP TRIGGER IF EXISTS workforce_tasks_before_write ON tasks;
-CREATE TRIGGER workforce_tasks_before_write
+CREATE OR REPLACE TRIGGER workforce_tasks_before_write
   BEFORE INSERT OR UPDATE ON tasks
   FOR EACH ROW EXECUTE FUNCTION workforce_tasks_before_write();
 
@@ -410,8 +408,7 @@ BEGIN
   RETURN NULL;
 END $$;
 
-DROP TRIGGER IF EXISTS workforce_tasks_after_write ON tasks;
-CREATE TRIGGER workforce_tasks_after_write
+CREATE OR REPLACE TRIGGER workforce_tasks_after_write
   AFTER INSERT OR UPDATE ON tasks
   FOR EACH ROW EXECUTE FUNCTION workforce_tasks_after_write();
 
@@ -426,14 +423,11 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END $$;
 
-DROP TRIGGER IF EXISTS workforce_engine_only_guard ON workforce_agent_permissions;
-CREATE TRIGGER workforce_engine_only_guard BEFORE INSERT OR UPDATE OR DELETE ON workforce_agent_permissions
+CREATE OR REPLACE TRIGGER workforce_engine_only_guard BEFORE INSERT OR UPDATE OR DELETE ON workforce_agent_permissions
   FOR EACH ROW EXECUTE FUNCTION workforce_engine_only_guard();
-DROP TRIGGER IF EXISTS workforce_engine_only_guard ON task_dependencies;
-CREATE TRIGGER workforce_engine_only_guard BEFORE INSERT OR UPDATE OR DELETE ON task_dependencies
+CREATE OR REPLACE TRIGGER workforce_engine_only_guard BEFORE INSERT OR UPDATE OR DELETE ON task_dependencies
   FOR EACH ROW EXECUTE FUNCTION workforce_engine_only_guard();
-DROP TRIGGER IF EXISTS workforce_engine_only_guard ON workforce_deliverables;
-CREATE TRIGGER workforce_engine_only_guard BEFORE INSERT OR UPDATE OR DELETE ON workforce_deliverables
+CREATE OR REPLACE TRIGGER workforce_engine_only_guard BEFORE INSERT OR UPDATE OR DELETE ON workforce_deliverables
   FOR EACH ROW EXECUTE FUNCTION workforce_engine_only_guard();
 
 -- Workforce approvals cannot be created, decided or removed by direct writes.
@@ -450,8 +444,7 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END $$;
 
-DROP TRIGGER IF EXISTS workforce_approvals_guard ON approval_requests;
-CREATE TRIGGER workforce_approvals_guard BEFORE INSERT OR UPDATE OR DELETE ON approval_requests
+CREATE OR REPLACE TRIGGER workforce_approvals_guard BEFORE INSERT OR UPDATE OR DELETE ON approval_requests
   FOR EACH ROW EXECUTE FUNCTION workforce_approvals_guard();
 
 -- ---------------------------------------------------------------------------
@@ -1035,18 +1028,30 @@ ALTER TABLE task_dependencies           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workforce_deliverables      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workforce_task_transitions  ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS workforce_agent_permissions_member_read ON workforce_agent_permissions;
-CREATE POLICY workforce_agent_permissions_member_read ON workforce_agent_permissions
+DO $pol$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'workforce_agent_permissions' AND policyname = 'workforce_agent_permissions_member_read') THEN
+    CREATE POLICY workforce_agent_permissions_member_read ON workforce_agent_permissions
   FOR SELECT TO authenticated USING (workforce_is_org_member(organization_id));
-DROP POLICY IF EXISTS task_dependencies_member_read ON task_dependencies;
-CREATE POLICY task_dependencies_member_read ON task_dependencies
+  END IF;
+END $pol$;
+DO $pol$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'task_dependencies' AND policyname = 'task_dependencies_member_read') THEN
+    CREATE POLICY task_dependencies_member_read ON task_dependencies
   FOR SELECT TO authenticated USING (workforce_is_org_member(organization_id));
-DROP POLICY IF EXISTS workforce_deliverables_member_read ON workforce_deliverables;
-CREATE POLICY workforce_deliverables_member_read ON workforce_deliverables
+  END IF;
+END $pol$;
+DO $pol$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'workforce_deliverables' AND policyname = 'workforce_deliverables_member_read') THEN
+    CREATE POLICY workforce_deliverables_member_read ON workforce_deliverables
   FOR SELECT TO authenticated USING (workforce_is_org_member(organization_id));
-DROP POLICY IF EXISTS workforce_task_transitions_read ON workforce_task_transitions;
-CREATE POLICY workforce_task_transitions_read ON workforce_task_transitions
+  END IF;
+END $pol$;
+DO $pol$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'workforce_task_transitions' AND policyname = 'workforce_task_transitions_read') THEN
+    CREATE POLICY workforce_task_transitions_read ON workforce_task_transitions
   FOR SELECT TO authenticated USING (true);
+  END IF;
+END $pol$;
 
 -- Idempotent privilege setup; re-run after any blanket GRANT.
 CREATE OR REPLACE FUNCTION workforce_apply_privileges()
