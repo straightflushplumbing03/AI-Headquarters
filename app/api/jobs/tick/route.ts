@@ -35,6 +35,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { BackgroundWorker } from '@/lib/jobs/worker'
 import { MaintenanceScheduler, AuthorityScheduler } from '@/lib/jobs/maintenance'
+import { runWorkforceBatch } from '@/lib/workforce/runner'
+import { defaultExecutors, RECURRING_TOOLS } from '@/lib/workforce/executors'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -89,11 +91,23 @@ export async function POST(request: NextRequest) {
 
   const batch = await worker.processBatch()
 
+  // Workforce agents run as the service role; without that key the runner is
+  // skipped (the workforce functions refuse every other role anyway).
+  let workforce: unknown = { skipped: 'SUPABASE_SERVICE_ROLE_KEY not configured' }
+  if (serviceKey) {
+    try {
+      workforce = await runWorkforceBatch(client as any, defaultExecutors(), { limit: 3, recurringTools: RECURRING_TOOLS })
+    } catch (e) {
+      workforce = { error: e instanceof Error ? e.message.split('\n')[0] : 'workforce run failed' }
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     maintenance: { approvalSweeps, embeddingBackfills, budgetReconciliation },
     authority,
     worker: batch,
+    workforce,
   })
 }
 
