@@ -26,6 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_user_roles_role ON user_roles(role);
 ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
 
 -- Users can read their own role row only.
+DROP POLICY IF EXISTS user_roles_self_select ON user_roles;
 CREATE POLICY user_roles_self_select ON user_roles
   FOR SELECT USING (user_id = auth.uid());
 
@@ -44,6 +45,7 @@ CREATE INDEX IF NOT EXISTS idx_founder_ai_budgets_user ON founder_ai_budgets(use
 
 ALTER TABLE founder_ai_budgets ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS founder_ai_budgets_self ON founder_ai_budgets;
 CREATE POLICY founder_ai_budgets_self ON founder_ai_budgets
   FOR ALL USING (user_id = auth.uid());
 
@@ -66,6 +68,7 @@ CREATE INDEX IF NOT EXISTS idx_company_memory_org_category ON company_memory(org
 
 ALTER TABLE company_memory ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS company_memory_org_isolation ON company_memory;
 CREATE POLICY company_memory_org_isolation ON company_memory
   FOR ALL USING (
     organization_id IN (

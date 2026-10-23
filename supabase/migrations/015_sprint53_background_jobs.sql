@@ -97,6 +97,7 @@ CREATE INDEX IF NOT EXISTS idx_background_jobs_lease
 -- ----------------------------------------------------------------------------
 ALTER TABLE background_jobs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS background_jobs_org_isolation ON background_jobs;
 CREATE POLICY background_jobs_org_isolation ON background_jobs
   FOR ALL
   USING (
