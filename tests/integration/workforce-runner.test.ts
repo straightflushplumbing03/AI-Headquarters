@@ -138,8 +138,9 @@ describe.skipIf(!isLocal)('workforce runner (end to end)', () => {
     expect(by[ids.gated].outcome).toBe('waiting_approval')
     expect(by[ids.crash]).toMatchObject({ outcome: 'failed', detail: 'upstream API returned 502' })
     expect(by[ids.badOrigin].outcome).toBe('failed')
-    // Highest priority first.
-    expect(report.outcomes[0].taskId).toBe(ids.report)
+    // Highest priority first (among this test's tasks; others may share the database).
+    const mine = new Set(Object.values(ids))
+    expect(report.outcomes.filter((o) => mine.has(o.taskId))[0].taskId).toBe(ids.report)
   })
 
   it('stores a verified report deliverable backed by its events', async () => {

@@ -100,4 +100,6 @@ jobs:
           WORKFORCE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/verify
         run: |
           npm ci
-          npx vitest run tests/integration/workforce-runner.test.ts tests/integration/workforce-db.test.ts
+          # Alone: the runner takes queued work from every organization, so it must
+          # not share the database with another suite running at the same time.
+          npx vitest run tests/integration/workforce-runner.test.ts
