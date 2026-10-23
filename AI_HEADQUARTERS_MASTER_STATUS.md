@@ -13,6 +13,105 @@
   (`intelligence-hq/ga4-and-repo-status`): Google Analytics 4 adapter and a
   read-only GitHub repository-status adapter. Both new integrations are
   credential-gated and collect nothing until credentials are supplied.
+- **2026-10-20** — Vercel deployments fixed and merged (PR #21): daily cron at 14:00 UTC,
+  Node 22, GET on `/api/jobs/tick`, optional 15-minute GitHub Actions tick.
+- **2026-10-20** — Phase A workforce core built on branch `phase-a/workforce-core`
+  (local commit, not pushed, not applied to any hosted database). See
+  "Phase A workforce core" below.
+
+## Hosted database status (2026-10-23)
+
+- **Migrations 025 and 026 are applied** to Supabase project `znpqosbwdgrtfediqvwt`
+  ("ai-hq-live-verification-test"), via the Supabase connector in pieces named `025a`–`025i`
+  and `026a`–`026d`. The pieces were split because confirmation prompts for statements containing
+  `DROP` never reached the owner; the repo files now use `CREATE OR REPLACE TRIGGER` and
+  create-if-missing policies instead (same end state, no DROP).
+- Verified on the hosted DB: function source, execute privileges, triggers, policies and new
+  columns identical to the locally tested build. A full smoke cycle ran and was rolled back:
+  claim, authorize, deliverable, completion, duplicate rejection, other-agent refusal,
+  secret redaction, append-only events.
+- That project holds only September 11 test fixtures (RLS TEST ORG A/B, one smoke org, agent
+  and task). No business data. Supabase's table row estimates showed 0 rows; actual counts differ.
+- `lxcrqbrjezsqrowajmsz` (the original July project) is paused; the connector cannot restore it
+  ("no compatible image"). Restore it from the Supabase dashboard if its contents matter.
+
+## Phase A workforce core (2026-10-20)
+
+**State: implemented, tested, migrated to the hosted test DB (2026-10-23).**
+
+What exists:
+
+- `supabase/migrations/025_phase_a_workforce_core.sql` (additive; no drops, no data rewrites).
+  Extends existing `agents`, `tasks`, `activity_events`, `approval_requests`; adds
+  `workforce_agent_permissions`, `task_dependencies`, `workforce_deliverables`,
+  `workforce_task_transitions`. Also adds the columns the app already writes but no
+  migration created (`tasks.creator_id`; `activity_events.agent_id/user_id/title/description/metadata`).
+- All rules live in the database (SECURITY DEFINER `workforce_*` functions + triggers):
+  explicit per-agent grants (deny by default), execution-time permission and approval
+  checks, dependency gating, enforced status transitions, dedupe of open tasks,
+  append-only `activity_events` (no UPDATE/DELETE for any API role; owner too, except
+  whole-org deletion), secret scrubbing of event metadata, deliverables linked to the
+  producing event and verified only with a verification event. Agents (service role)
+  cannot grant permissions or decide approvals.
+- `lib/workforce/service.ts`; routes `POST /api/workforce/tasks`,
+  `GET /api/workforce/tasks/:id` (full history), `POST /api/workforce/approvals/:id`.
+- `ApprovalCenter` now decides real approval records through the enforced route. It
+  previously "approved" by setting `tasks.status` from the browser, which the database
+  now rejects.
+
+Tests:
+
+| Suite | Ran? | Result |
+|---|---|---|
+| `tests/sql/workforce_phase_a_test.sql` (84 checks, real `authenticated`/`service_role`/`anon` roles, local Postgres 16) | Yes, on an existing-chain DB and a fresh DB | 84/84 pass |
+| `tests/unit/workforce-routes.test.ts` (vitest) | Yes (2026-10-20) | 22/22 pass |
+| `tests/integration/workforce-db.test.ts` (vitest wrapper for both SQL suites, local Postgres) | Yes (2026-10-20) | 2/2 pass |
+| Full `npx vitest run` | Yes (2026-10-20) | 306 pass, 17 skipped (live-DB suites need credentials), 0 fail |
+| `npx tsc --noEmit` / `next lint` on changed files | Yes (2026-10-20) | 0 errors / 0 warnings |
+
+Known limits / not done:
+
+- No worker calls the executor functions yet; nothing executes tasks in the background.
+- Legacy direct inserts (`CreateTask.tsx`, `lib/services/tasks.ts`) still create tasks
+  without `required_tool`; such tasks can never be claimed (deny by default) until
+  created through `workforce_create_task`.
+- `lib/ai/agents/orchestrator.ts` / `execution-pipeline.ts` (unused) mark tasks
+  completed directly; the database now rejects that path.
+- Pre-existing, unrelated: `tests/sql/sprint5_validation.sql` fails on
+  `budget_reservations.reserved_amount` (012 vs 08 schema conflict).
+- **Supabase projects (2026-10-20 review).** Three refs appear across the two repos:
+  | Ref | Where it appears | Evidence | Verdict |
+  |---|---|---|---|
+  | `znpqosbwdgrtfediqvwt` | `.env.local.example`, migration 09, Sprint 5.3 live verification, Supabase GitHub integration on this repo | The app was verified against it on 2026-09-11; migration 09 fixed drift found in it | **Recommended production** for this app |
+  | `lxcrqbrjezsqrowajmsz` | `.mcp.json` in both repos, website blueprint | MCP tooling config only; the handoff plan itself says "verify this ref" | Unverified; check whether it is the same data or a separate Authority project |
+  | `fcjyfjytmtuadfnzpmmu` | Connected to the build session | Created 2026-10-14, no tables, no migrations | Not production; usable as a scratch/test project |
+  Neither candidate is reachable from the build session yet; migrations 025/026 wait on that access.
+
+### Delegated agent approval (migration 026, 2026-10-20)
+
+**State: implemented and tested locally; pushed to PR #20. Not migrated, not deployed.**
+
+- Owners configure, via `POST /api/workforce/autonomy` (owner/admin only; agents can never call it):
+  action policies (risk floor + owner-only flag + category) and per-agent approval delegations
+  (tool/resource, max risk low|medium, max cost).
+- Requesting agent must submit a business case (justification, benefit, risk, cost, rollback) via
+  `workforce_justify_approval`. A delegate agent decides via `workforce_agent_review_approval`.
+- Hard rules: no self-approval; delegate must hold its own grant for the action; spending, legal,
+  customer data, security, production and irreversible categories are always owner-only; no policy
+  means no agent approval; the owner's risk floor overrides a lowballed declaration; anything outside
+  authority is escalated (left pending for the owner) with the reason recorded. Delegated approvals
+  are re-checked at execution time and stop working if the delegation is revoked or expires.
+- Tests: `tests/sql/workforce_delegation_test.sql` 42/42 pass; Phase A suite still 84/84 after 026.
+  `tests/unit/workforce-autonomy-route.test.ts` 5/5 pass.
+- Owner UI: **Settings → Agent autonomy** (grant/revoke permissions, set policies, grant/revoke
+  delegations), backed by the same owner-only route. Delegation suite now 45/45.
+- Not yet built: an agent runner that calls justify/review automatically.
+- Compatibility check before production: no live code updates tasks in a way the new rules reject;
+  the existing approval-expiry sweeps only match rows with `response_deadline`, which workforce
+  approvals never set.
+
+Local verification: `DATABASE_URL=postgres://…@localhost/<scratch> scripts/apply-migrations-local.sh`
+then `psql <url> -f tests/sql/workforce_phase_a_test.sql`.
 
 ## Executive summary
 
@@ -38,7 +137,7 @@ Do not use old README badges or statements such as “production ready,” “al
 |---|---|---|---|
 | P0 | Establish one trusted project status and backlog | This document is the proposed starting point; merge it after review | This file is merged and referenced by the README / handoff |
 | P0 | Review open pull requests and stale Copilot work | PR #15 merged 2026-10-19 (`d9c226c`). PR #18 open (GA4 + read-only repo status). Older WIP Copilot PRs (#2, #4, #5, #6, #7) still open | Every PR is marked merge, revise, or close with a reason; no PR is merged just to tidy the list |
-| P0 | Confirm the hosting deployment is healthy | Handoff notes a previous Vercel deployment problem tied to missing `NEXT_PUBLIC_SUPABASE_*` environment variables; current status must be checked | Successful deployment plus authenticated smoke test |
+| P0 | Confirm the hosting deployment is healthy | **Deployments restored 2026-10-20 (PR #21).** Every deploy from 2026-09-11 failed: every-minute cron (Hobby allows daily), Node 20 pin (disabled by Vercel 2026-10-01), and the tick route had no GET for Vercel Cron. All six linked Vercel projects now deploy from `main`. Authenticated smoke test not yet done | Authenticated smoke test on production; `CRON_SECRET` confirmed set |
 | P0 | Verify database migrations and tenant isolation on a dedicated test database | Live hosted Supabase verification was previously blocked / unverified | `npm run test:live` and RLS probes pass against a separate test project, never production |
 | P0 | Run a real AI request through provider → parser → persisted result | No provider key / real parsed response was recorded in the handoff at the time of the audit | One successful, repeatable test query with output stored and errors handled |
 | P0 | Configure scheduled job execution | `/api/jobs/tick` requires `CRON_SECRET`; current deployment configuration must be verified | Authenticated cron tick succeeds; job is persisted, claimed, completed, and visible in logs |
