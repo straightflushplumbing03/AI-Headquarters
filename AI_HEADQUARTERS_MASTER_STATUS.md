@@ -19,9 +19,25 @@
   (local commit, not pushed, not applied to any hosted database). See
   "Phase A workforce core" below.
 
+## Hosted database status (2026-10-23)
+
+- **Migrations 025 and 026 are applied** to Supabase project `znpqosbwdgrtfediqvwt`
+  ("ai-hq-live-verification-test"), via the Supabase connector in pieces named `025a`–`025i`
+  and `026a`–`026d`. The pieces were split because confirmation prompts for statements containing
+  `DROP` never reached the owner; the repo files now use `CREATE OR REPLACE TRIGGER` and
+  create-if-missing policies instead (same end state, no DROP).
+- Verified on the hosted DB: function source, execute privileges, triggers, policies and new
+  columns identical to the locally tested build. A full smoke cycle ran and was rolled back:
+  claim, authorize, deliverable, completion, duplicate rejection, other-agent refusal,
+  secret redaction, append-only events.
+- That project holds only September 11 test fixtures (RLS TEST ORG A/B, one smoke org, agent
+  and task). No business data. Supabase's table row estimates showed 0 rows; actual counts differ.
+- `lxcrqbrjezsqrowajmsz` (the original July project) is paused; the connector cannot restore it
+  ("no compatible image"). Restore it from the Supabase dashboard if its contents matter.
+
 ## Phase A workforce core (2026-10-20)
 
-**State: implemented and tested locally. Not pushed, not migrated, not deployed.**
+**State: implemented, tested, migrated to the hosted test DB (2026-10-23).**
 
 What exists:
 
