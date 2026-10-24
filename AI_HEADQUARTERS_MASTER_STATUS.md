@@ -281,3 +281,20 @@ The system is not done merely because a dashboard loads or a build passes. It is
 6. Outcomes are measured from real data, with missing data labeled honestly.
 
 **Do not deploy to or alter the live plumbing website, production DNS, or production database as part of repository cleanup. Obtain explicit approval for those changes.**
+
+## 2026-10-24 — Which system is live (finding)
+
+- The live AI workforce is **straight-flush-brain** (private repo) on Supabase `AI-Headquarters`
+  (`fcjyfjytmtuadfnzpmmu`): 14 agents, pg_cron worker every 15 min, weekly site health (Mon 15:05 UTC,
+  last run 2026-10-23 succeeded), AI visibility and competitor research tasks running, owner signed in.
+- The Technical SEO Engineer there already holds `web.read` on `*` (no approval), which is what the weekly
+  site audit uses. No new `site.audit` grant is needed.
+- This repo's workforce engine (migrations 025-027) lives on `znpqosbwdgrtfediqvwt`, which holds only test
+  fixtures and is in a Supabase org the connector cannot currently reach. Migration 027 is **not** applied
+  there and is no longer urgent: it would duplicate scheduling that the brain already does live.
+- Vercel: `CRON_SECRET` added (sensitive, prod+preview) and production redeployed 2026-10-24.
+  `SUPABASE_SERVICE_ROLE_KEY` was already present (Sept). The Vercel Supabase integration vars
+  (`SUPABASE_URL`, `POSTGRES_*`) point to `fcjyfjytmtuadfnzpmmu`; the app code reads `NEXT_PUBLIC_SUPABASE_URL`
+  (set manually in Sept, sensitive, not readable) — likely the older project.
+- Open decision for the owner: consolidate on one system (recommended: the brain), then either point this
+  app at the brain's database as its dashboard or retire the duplicate engine.
