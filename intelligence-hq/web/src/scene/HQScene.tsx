@@ -354,6 +354,19 @@ function statusScreen(status: string): THREE.CanvasTexture {
   return screenTextures.get(status)!;
 }
 
+// Each agent gets its own colour; agents added later get one from the palette.
+const BOT_COLORS: Record<string, string> = {
+  executive: "#FFB020", seo: "#3D8BFF", competitor: "#A45CFF", marketing: "#FF4FA3",
+  customer: "#2FD9A6", technical: "#FF7A2F", growth: "#8CFF4F",
+};
+const PALETTE = ["#4FD8FF", "#FFD84F", "#FF6B6B", "#B98CFF", "#4FFFB0", "#FF9F4F"];
+function botColorFor(id: string): string {
+  if (BOT_COLORS[id]) return BOT_COLORS[id];
+  let h = 0;
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return PALETTE[h % PALETTE.length];
+}
+
 function Workstation({ agent, dept, selected, onSelect, reducedMotion, occluders }:
   { agent: Agent; dept: Dept; selected: boolean; onSelect: (id: string) => void; reducedMotion: boolean;
     occluders: React.RefObject<THREE.Object3D>[] }) {
@@ -364,7 +377,12 @@ function Workstation({ agent, dept, selected, onSelect, reducedMotion, occluders
   const screen = useRef<THREE.MeshBasicMaterial>(null);
   const beam = useRef<THREE.MeshBasicMaterial>(null);
   const body = useRef<THREE.Group>(null);
+  const head = useRef<THREE.Group>(null);
+  const eyes = useRef<THREE.Group>(null);
   const padRing = useRef<THREE.Mesh>(null);
+  const { camera } = useThree();
+  const botColor = botColorFor(agent.id);
+  const eyeColor = agent.status === "error" ? BRAND_RED : active ? color : "#BFF6FF";
   const [hover, setHover] = useState(false);
   const label = useMemo(() => textTexture([{ text: dept.label.toUpperCase(), size: 60, color: "#FFFFFF", weight: 700 }], 1200, 120, null, dept.color), [dept]);
   const screenTex = statusScreen(agent.status);
@@ -377,7 +395,24 @@ function Workstation({ agent, dept, selected, onSelect, reducedMotion, occluders
     }
     if (screen.current) screen.current.opacity = off ? 0.15 : active ? 0.85 + Math.sin(t * 12) * 0.08 * m : 0.55;
     if (beam.current) beam.current.opacity = active ? 0.16 + Math.sin(t * 4) * 0.06 * m : 0;
-    if (body.current) body.current.position.y = active ? 0.12 + Math.sin(t * 2.4) * 0.08 * m : 0.05 + Math.sin(t * 1.2 + dept.pos[0]) * 0.03 * m;
+    if (body.current) body.current.position.y = 1.75 + (active ? 0.1 + Math.sin(t * 2.4) * 0.08 * m : Math.sin(t * 1.2 + dept.pos[0]) * 0.07 * m);
+    if (head.current && body.current?.parent) {
+      // idle bots turn to look at the camera; busy bots face their screen (yaw 0)
+      let target = 0;
+      if (!active && !off) {
+        const local = body.current.parent.worldToLocal(camera.position.clone());
+        target = Math.atan2(-(local.x - body.current.position.x), -(local.z - body.current.position.z));
+      }
+      let diff = target - head.current.rotation.y;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+      head.current.rotation.y += diff * (reducedMotion ? 1 : 0.08);
+      head.current.rotation.x = off ? 0.35 : 0;
+    }
+    if (eyes.current) {
+      const blink = !active && !off && m && (t + dept.pos[2]) % 4.2 < 0.12 ? 0.12 : 1;
+      eyes.current.scale.y = agent.status === "error" ? 0.45 : off ? 0.3 : blink;
+      eyes.current.position.x = active ? Math.sin(t * 3) * 0.07 * m : 0;
+    }
     if (padRing.current) padRing.current.rotation.z = -t * 0.3 * m;
   });
   const click = (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); onSelect(agent.id); };
@@ -403,35 +438,64 @@ function Workstation({ agent, dept, selected, onSelect, reducedMotion, occluders
         <planeGeometry args={[1.9, 1.07]} />
         <meshBasicMaterial ref={screen} map={screenTex} transparent opacity={0.6} toneMapped={false} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
-      {/* chair */}
-      <mesh position={[0, 0.6, 0.45]}><cylinderGeometry args={[0.38, 0.38, 0.08, 24]} /><meshStandardMaterial color="#111C3D" metalness={0.6} roughness={0.3} /></mesh>
-      {/* agent */}
-      <group ref={body} onClick={click} onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = "pointer"; }}
+      {/* round robot agent: hovers over the pad, looks at you when idle and at its screen while working */}
+      <group ref={body} position={[0, 1.75, 0.55]} onClick={click}
+        onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = "pointer"; }}
         onPointerOut={() => { setHover(false); document.body.style.cursor = ""; }}>
-        <mesh position={[0, 1.2, 0.35]}>
-          <capsuleGeometry args={[0.3, 0.6, 8, 24]} />
-          <meshPhysicalMaterial color={dept.color} metalness={0.4} roughness={0.2} clearcoat={1}
-            emissive={dept.color} emissiveIntensity={selected || hover ? 0.55 : off ? 0 : 0.18} />
+        <group ref={head}>
+          <mesh>
+            <sphereGeometry args={[0.55, 48, 48]} />
+            <meshPhysicalMaterial color={botColor} metalness={0.25} roughness={0.18} clearcoat={1} clearcoatRoughness={0.08}
+              emissive={botColor} emissiveIntensity={selected || hover ? 0.45 : off ? 0.02 : 0.14} />
+          </mesh>
+          {/* glass face */}
+          <mesh>
+            <sphereGeometry args={[0.565, 48, 32, Math.PI * 1.5 - 0.95, 1.9, 0.92, 1.25]} />
+            <meshPhysicalMaterial color="#05070F" metalness={0.6} roughness={0.05} clearcoat={1} side={THREE.DoubleSide} />
+          </mesh>
+          <group ref={eyes} position={[0, 0.06, -0.56]}>
+            {[-0.17, 0.17].map((x) => (
+              <mesh key={x} position={[x, 0, 0]} scale={[1, 1.35, 0.45]}>
+                <sphereGeometry args={[0.075, 20, 20]} />
+                <meshBasicMaterial color={glow(eyeColor, off ? 0.25 : 2.8)} toneMapped={false} />
+              </mesh>
+            ))}
+          </group>
+          {/* side pods */}
+          {[-1, 1].map((sx) => (
+            <mesh key={sx} position={[sx * 0.55, 0, 0]} scale={[0.45, 1, 1]}>
+              <sphereGeometry args={[0.14, 20, 20]} />
+              <meshPhysicalMaterial color="#EAF2FF" metalness={0.5} roughness={0.15} clearcoat={1} />
+            </mesh>
+          ))}
+          {/* antenna */}
+          <mesh position={[0, 0.68, 0]}><cylinderGeometry args={[0.02, 0.02, 0.28, 8]} /><meshStandardMaterial color="#C9D6EA" metalness={0.8} roughness={0.3} /></mesh>
+          <mesh position={[0, 0.85, 0]}><sphereGeometry args={[0.07, 16, 16]} /><meshBasicMaterial color={glow(color, off ? 0.3 : 3)} toneMapped={false} /></mesh>
+        </group>
+        {/* status orbit ring */}
+        <mesh ref={halo} rotation-x={Math.PI / 2 - 0.25}>
+          <torusGeometry args={[0.82, 0.03, 8, 64, active ? Math.PI * 1.4 : Math.PI * 2]} />
+          <meshBasicMaterial color={glow(color, off ? 0.4 : 2.4)} toneMapped={false} />
         </mesh>
-        <mesh position={[0, 1.25, 0.06]}><sphereGeometry args={[0.09, 16, 16]} /><meshBasicMaterial color={glow(color, off ? 0.4 : 3)} toneMapped={false} /></mesh>
-        <mesh position={[0, 1.98, 0.35]}>
-          <sphereGeometry args={[0.26, 32, 32]} />
-          <meshPhysicalMaterial color="#E9F2FF" metalness={0.3} roughness={0.1} clearcoat={1} />
+        {/* hover thruster glow */}
+        <mesh position={[0, -0.62, 0]} rotation-x={Math.PI / 2}>
+          <circleGeometry args={[0.32, 32]} />
+          <meshBasicMaterial color={glow(botColor, off ? 0.2 : 1.8)} transparent opacity={0.55} toneMapped={false}
+            blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
-        <mesh position={[0, 2.0, 0.13]}><boxGeometry args={[0.34, 0.07, 0.06]} /><meshBasicMaterial color={glow(color, off ? 0.4 : 2.6)} toneMapped={false} /></mesh>
-        <mesh ref={halo} position={[0, 2.62, 0.35]} rotation-x={Math.PI / 2}>
-          <torusGeometry args={[0.38, 0.035, 8, 48, active ? Math.PI * 1.5 : Math.PI * 2]} />
-          <meshBasicMaterial color={glow(color, off ? 0.5 : 2.6)} toneMapped={false} />
-        </mesh>
-        <mesh position={[0, 1.5, 0.35]} visible={false}><boxGeometry args={[1.4, 3, 1.4]} /></mesh>
+        <mesh visible={false}><sphereGeometry args={[0.9, 8, 8]} /></mesh>
       </group>
+      <mesh rotation-x={-Math.PI / 2} position={[0, 0.24, 0.55]}>
+        <circleGeometry args={[0.55, 32]} />
+        <meshBasicMaterial color={glow(botColor, off ? 0.1 : 0.9)} transparent opacity={0.35} toneMapped={false} depthWrite={false} />
+      </mesh>
       {/* light beam while working */}
-      <mesh position={[0, 3.2, 0.35]}><cylinderGeometry args={[0.5, 0.9, 6, 32, 1, true]} />
+      <mesh position={[0, 3.2, 0.55]}><cylinderGeometry args={[0.6, 1, 6, 32, 1, true]} />
         <meshBasicMaterial ref={beam} color={glow(color, 1.5)} transparent opacity={0} toneMapped={false} side={THREE.DoubleSide}
           depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
-      {agent.status === "error" && <pointLight position={[0, 2.6, 0.35]} color={BRAND_RED} intensity={10} distance={6} />}
-      {active && <pointLight position={[0, 2.2, 0.35]} color={color} intensity={6} distance={5} />}
-      <Html position={[0, 3.25, 0.35]} center distanceFactor={16} zIndexRange={[10, 0]} occlude={occluders} style={{ pointerEvents: "none" }}>
+      {agent.status === "error" && <pointLight position={[0, 2.4, 0.55]} color={BRAND_RED} intensity={10} distance={6} />}
+      {active && <pointLight position={[0, 2.2, 0.55]} color={color} intensity={6} distance={5} />}
+      <Html position={[0, 3.35, 0.55]} center distanceFactor={16} zIndexRange={[10, 0]} occlude={occluders} style={{ pointerEvents: "none" }}>
         <div className={`tag tag-${agent.status}${selected ? " tag-selected" : ""}`}>
           <strong>{agent.name}</strong><span>{STATUS_LABEL[agent.status]}</span>
         </div>
