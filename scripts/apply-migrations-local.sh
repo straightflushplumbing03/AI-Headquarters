@@ -35,5 +35,10 @@ psql "$DATABASE_URL" -q -c "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES I
 psql "$DATABASE_URL" -q -c "SELECT workforce_apply_delegation_privileges();" >/dev/null 2>&1 \
   || psql "$DATABASE_URL" -q -c "SELECT workforce_apply_privileges();" >/dev/null 2>&1 || true
 
+# The generic Supabase grant simulation above must not undo the sensitive-table
+# least-privilege migration. Re-apply it last, exactly as production migration
+# 028 does after the platform/default grants are present.
+psql "$DATABASE_URL" -q -v ON_ERROR_STOP=1 -f "$ROOT/supabase/migrations/028_sensitive_table_least_privilege.sql" >/dev/null
+
 printf '%s\n' "${failed[@]}"
 rm -f "/tmp/mig_err_$$"
