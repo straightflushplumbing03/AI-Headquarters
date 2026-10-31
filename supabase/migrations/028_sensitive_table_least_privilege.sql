@@ -78,7 +78,7 @@ BEGIN
     ]) AS t(table_name)
     CROSS JOIN unnest(ARRAY[
       'SELECT', 'INSERT', 'UPDATE', 'DELETE',
-      'TRUNCATE', 'TRIGGER', 'REFERENCES', 'MAINTAIN'
+      'TRUNCATE', 'TRIGGER', 'REFERENCES'
     ]) AS p(privilege_name)
     WHERE has_table_privilege(
       'anon',
@@ -101,7 +101,7 @@ BEGIN
       'organization_members'
     ]) AS t(table_name)
     CROSS JOIN unnest(ARRAY[
-      'TRUNCATE', 'TRIGGER', 'REFERENCES', 'MAINTAIN'
+      'TRUNCATE', 'TRIGGER', 'REFERENCES'
     ]) AS p(privilege_name)
     WHERE has_table_privilege(
       'authenticated',
