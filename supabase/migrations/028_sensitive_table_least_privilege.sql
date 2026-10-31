@@ -67,27 +67,64 @@ GRANT SELECT, INSERT, UPDATE, DELETE
 
 DO $verify$
 BEGIN
-  IF has_table_privilege('anon', 'public.ai_provider_config', 'SELECT')
-     OR has_table_privilege('anon', 'public.external_connectors', 'SELECT')
-     OR has_table_privilege('anon', 'public.audit_logs', 'INSERT')
-     OR has_table_privilege('anon', 'public.organization_members', 'SELECT') THEN
-    RAISE EXCEPTION '028 security check failed: anon retains access to a private table';
+  -- Anonymous users must have no table-level capability on any private table.
+  IF EXISTS (
+    SELECT 1
+    FROM unnest(ARRAY[
+      'ai_execution_logs',
+      'ai_provider_config',
+      'audit_logs',
+      'external_connectors',
+      'organization_members'
+    ]) AS t(table_name)
+    CROSS JOIN unnest(ARRAY[
+      'SELECT', 'INSERT', 'UPDATE', 'DELETE',
+      'TRUNCATE', 'TRIGGER', 'REFERENCES', 'MAINTAIN'
+    ]) AS p(privilege_name)
+    WHERE has_table_privilege(
+      'anon',
+      format('public.%I', t.table_name),
+      p.privilege_name
+    )
+  ) THEN
+    RAISE EXCEPTION '028 security check failed: anon retains a privilege on a private table';
   END IF;
 
-  IF has_table_privilege('authenticated', 'public.ai_execution_logs', 'UPDATE')
-     OR has_table_privilege('authenticated', 'public.ai_execution_logs', 'DELETE')
-     OR has_table_privilege('authenticated', 'public.audit_logs', 'UPDATE')
-     OR has_table_privilege('authenticated', 'public.audit_logs', 'DELETE')
-     OR has_table_privilege('authenticated', 'public.audit_logs', 'TRUNCATE')
-     OR has_table_privilege('authenticated', 'public.ai_provider_config', 'TRUNCATE')
-     OR has_table_privilege('authenticated', 'public.external_connectors', 'TRUNCATE') THEN
+  -- No API role may bypass RLS using table-level maintenance/DDL-related
+  -- privileges. Log rows are append-only for authenticated application users.
+  IF EXISTS (
+    SELECT 1
+    FROM unnest(ARRAY[
+      'ai_execution_logs',
+      'ai_provider_config',
+      'audit_logs',
+      'external_connectors',
+      'organization_members'
+    ]) AS t(table_name)
+    CROSS JOIN unnest(ARRAY[
+      'TRUNCATE', 'TRIGGER', 'REFERENCES', 'MAINTAIN'
+    ]) AS p(privilege_name)
+    WHERE has_table_privilege(
+      'authenticated',
+      format('public.%I', t.table_name),
+      p.privilege_name
+    )
+  ) OR has_table_privilege('authenticated', 'public.ai_execution_logs', 'UPDATE')
+    OR has_table_privilege('authenticated', 'public.ai_execution_logs', 'DELETE')
+    OR has_table_privilege('authenticated', 'public.audit_logs', 'UPDATE')
+    OR has_table_privilege('authenticated', 'public.audit_logs', 'DELETE') THEN
     RAISE EXCEPTION '028 security check failed: authenticated retains a prohibited privilege';
   END IF;
 
+  -- Preserve the app's known access patterns and trusted backend access.
   IF NOT has_table_privilege('authenticated', 'public.ai_execution_logs', 'SELECT')
      OR NOT has_table_privilege('authenticated', 'public.ai_execution_logs', 'INSERT')
+     OR NOT has_table_privilege('authenticated', 'public.audit_logs', 'SELECT')
      OR NOT has_table_privilege('authenticated', 'public.audit_logs', 'INSERT')
      OR NOT has_table_privilege('authenticated', 'public.organization_members', 'SELECT')
+     OR NOT has_table_privilege('authenticated', 'public.organization_members', 'INSERT')
+     OR NOT has_table_privilege('authenticated', 'public.ai_provider_config', 'SELECT')
+     OR NOT has_table_privilege('authenticated', 'public.external_connectors', 'SELECT')
      OR NOT has_table_privilege('service_role', 'public.ai_provider_config', 'SELECT')
      OR NOT has_table_privilege('service_role', 'public.external_connectors', 'SELECT') THEN
     RAISE EXCEPTION '028 security check failed: a required application/service privilege is missing';
@@ -99,12 +136,14 @@ BEGIN
       AND tablename = 'ai_provider_config'
       AND policyname = 'ai_provider_admin_only'
       AND cmd = 'ALL'
+      AND 'authenticated' = ANY(roles)
   ) OR NOT EXISTS (
     SELECT 1 FROM pg_policies
     WHERE schemaname = 'public'
       AND tablename = 'external_connectors'
       AND policyname = 'external_connectors_admin_only'
       AND cmd = 'ALL'
+      AND 'authenticated' = ANY(roles)
   ) THEN
     RAISE EXCEPTION '028 security check failed: admin-only credential policies are missing';
   END IF;
