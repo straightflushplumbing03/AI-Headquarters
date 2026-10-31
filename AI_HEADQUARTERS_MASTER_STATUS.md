@@ -298,3 +298,17 @@ The system is not done merely because a dashboard loads or a build passes. It is
   (set manually in Sept, sensitive, not readable) — likely the older project.
 - Open decision for the owner: consolidate on one system (recommended: the brain), then either point this
   app at the brain's database as its dashboard or retire the duplicate engine.
+
+## 2026-10-31 — Mission Control is the owner dashboard for the brain
+
+- Decision taken: consolidate on **straight-flush-brain** (Supabase `fcjyfjytmtuadfnzpmmu`). This repo's
+  duplicate engine is not extended further.
+- Mission Control (Design 2, black/neon lime) is published as a private claude.ai artifact and reads the
+  brain live through the owner's Supabase connector: website health (latest site check), AI search
+  visibility, all 14 agents and their current task, crew deliverables, reports, and pending approvals.
+- Approvals decided in Mission Control call `brain_decide_approval` as the owner operator, so they are
+  logged as `approval.approved` / `approval.rejected` events like any other owner decision.
+- Personal tasks and the Autopilot setting live in the artifact's own database.
+- Not yet connected: GA4 visitors, call tracking and form leads (no source in the brain), Google
+  Business Profile rating (needs Places API key + Place ID), and the installable `hq.` subdomain build
+  (`aiheadquarters-wt` Worker; needs the Cloudflare connector reconnected).
