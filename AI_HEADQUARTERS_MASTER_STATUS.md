@@ -24,6 +24,16 @@
   the first CI that actually runs the test suite, and added a migration
   verification gate. See PR #23. Added the status checklist below.
 
+## Intelligence HQ 3D prototype (2026-10-30)
+
+- New self-contained module `intelligence-hq/` (branch `intelligence-hq/virtual-hq-prototype`): FastAPI +
+  SQLAlchemy engine, seven agents, objective loop (plan → work → peer review → correction → consolidation →
+  owner approval), limits, approvals, emergency stop, WebSocket live updates, React Three Fiber headquarters.
+- Shares no code or database with the deployed Next.js/Supabase app; nothing deployed.
+- Tests: backend 48/48 (incl. PostgreSQL 16 loop + restart), browser end-to-end 6/6, `tsc` clean.
+- Runs on the simulated provider until a model key is set; all simulated output is labeled. See
+  `intelligence-hq/README.md` for setup, what is real vs simulated, and the roadmap.
+
 ## Agent runner (2026-10-23)
 
 - `lib/workforce/runner.ts` runs queued workforce tasks on every `/api/jobs/tick` (service role only).
