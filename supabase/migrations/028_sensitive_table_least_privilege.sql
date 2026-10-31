@@ -3,7 +3,6 @@
 -- This migration intentionally preserves service_role grants and owner access.
 -- It does not change the public plumbing website or any deployment settings.
 
-BEGIN;
 
 -- Remove all inherited/direct API-role access first. Re-grant only the
 -- operations required by the application. PUBLIC is included so an inherited
@@ -150,4 +149,3 @@ BEGIN
 END;
 $verify$;
 
-COMMIT;
