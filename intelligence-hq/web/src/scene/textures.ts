@@ -1,7 +1,7 @@
 // Signage and holographic panels drawn on canvas: no external fonts or images beyond the company logo.
 import * as THREE from "three";
 
-const DISPLAY = "'Chakra Petch', 'Barlow Condensed', sans-serif";
+export const DISPLAY = "'Chakra Petch', 'Barlow Condensed', sans-serif";
 
 function finish(c: HTMLCanvasElement): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(c);

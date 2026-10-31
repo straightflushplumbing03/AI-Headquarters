@@ -1,4 +1,4 @@
-import { Edges, Grid, Html, MeshReflectorMaterial, OrbitControls, RoundedBox, Sparkles, Stars } from "@react-three/drei";
+import { Edges, Html, OrbitControls, RoundedBox, Sparkles } from "@react-three/drei";
 import { Canvas, ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -6,7 +6,8 @@ import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { Agent, Dashboard, STATUS_LABEL } from "../api";
 import { BUILDING, CameraPreset, DEPARTMENTS, Dept, STATUS_COLOR, Vec3, deskFor } from "./layout";
-import { flowTexture, holoTexture, signTexture, textTexture } from "./textures";
+import CampusWorld from "./CampusWorld";
+import { flowTexture, holoTexture, textTexture } from "./textures";
 
 const PIPE_Y = 6.3;
 const MAIN_Z = -1.5;
@@ -25,20 +26,20 @@ interface Props {
 export default function HQScene(p: Props) {
   const screenRef = useRef<THREE.Mesh>(null!);
   return (
-    <Canvas dpr={[1, 1.75]} camera={{ position: p.camera.pos, fov: 42, near: 0.1, far: 500 }}
+    <Canvas dpr={[1, 1.75]} camera={{ position: p.camera.pos, fov: 42, near: 0.1, far: 900 }}
       gl={{ antialias: true }} onCreated={({ gl }) => { gl.toneMapping = THREE.ACESFilmicToneMapping; gl.toneMappingExposure = 1.15; }}>
-      <color attach="background" args={["#040815"]} />
-      <fog attach="fog" args={["#060B1E", 60, 190]} />
-      <ambientLight intensity={0.35} color="#7FA7FF" />
-      <hemisphereLight args={["#3B5BA8", "#0A0F20", 0.6]} />
-      <directionalLight position={[-30, 45, 20]} intensity={0.7} color="#9DB8FF" />
+      <color attach="background" args={["#1A1C33"]} />
+      <fog attach="fog" args={["#2B2A48", 140, 800]} />
+      <ambientLight intensity={0.3} color="#8C96C8" />
+      <hemisphereLight args={["#8A7AB8", "#1A1410", 0.55]} />
+      <directionalLight position={[-160, 45, -60]} intensity={1.5} color="#FFAE72" />
+      <directionalLight position={[80, 40, 120]} intensity={0.45} color="#8FB4FF" />
       <pointLight position={[0, 9, 4]} intensity={60} distance={40} color="#6FD3FF" />
       <pointLight position={[-15, 6, -2]} intensity={30} distance={22} color="#5B7BFF" />
       <pointLight position={[15, 6, -2]} intensity={30} distance={22} color="#FF7A55" />
-      <Stars radius={180} depth={60} count={2500} factor={5} fade speed={p.reducedMotion ? 0 : 0.4} />
       <CameraRig preset={p.camera} reducedMotion={p.reducedMotion} />
-      <Grounds />
-      <Building reducedMotion={p.reducedMotion} />
+      <CampusWorld dashboard={p.dashboard} reducedMotion={p.reducedMotion} />
+      <Building />
       <Lobby />
       <OperationsCore dashboard={p.dashboard} screenRef={screenRef} reducedMotion={p.reducedMotion} />
       <PipeNetwork reducedMotion={p.reducedMotion} />
@@ -47,7 +48,6 @@ export default function HQScene(p: Props) {
           onSelect={p.onSelect} reducedMotion={p.reducedMotion} occluders={[screenRef]} />
       ))}
       {p.handoffs.map((h) => <WaterPulse key={h.id} from={h.from} to={h.to} start={h.at} />)}
-      <HoverVan reducedMotion={p.reducedMotion} />
       {!p.reducedMotion && <Sparkles count={140} scale={[42, 6, 26]} position={[0, 3.4, 0]} size={2.4} speed={0.25} color="#8FE6FF" opacity={0.6} />}
       <EffectComposer multisampling={4}>
         <Bloom mipmapBlur intensity={1.15} luminanceThreshold={0.85} luminanceSmoothing={0.2} radius={0.75} />
@@ -76,71 +76,12 @@ function CameraRig({ preset, reducedMotion }: { preset: CameraPreset; reducedMot
     if (camera.position.distanceTo(g.pos) < 0.05 && c.target.distanceTo(g.target) < 0.05) g.active = false;
   });
   return <OrbitControls ref={controls} makeDefault enableDamping maxPolarAngle={Math.PI / 2.05} minDistance={3}
-    maxDistance={120} onStart={() => { goal.current.active = false; }} />;
+    maxDistance={230} onStart={() => { goal.current.active = false; }} />;
 }
 
 // ------------------------------------------------------------------------------------------------------------ site
-function Grounds() {
-  return (
-    <group>
-      <mesh rotation-x={-Math.PI / 2} position={[0, -0.02, 0]}>
-        <planeGeometry args={[420, 420]} />
-        <MeshReflectorMaterial blur={[300, 80]} resolution={512} mixBlur={1} mixStrength={18} roughness={0.9}
-          depthScale={1.1} minDepthThreshold={0.4} maxDepthThreshold={1.4} color="#060A18" metalness={0.6} mirror={0.6} />
-      </mesh>
-      <Grid position={[0, 0.005, 0]} args={[200, 200]} cellSize={2} cellThickness={0.6} cellColor="#12305A"
-        sectionSize={10} sectionThickness={1.1} sectionColor="#1F6FD6" fadeDistance={130} fadeStrength={1.4} infiniteGrid />
-      {/* light road with dashed lane glow */}
-      <mesh rotation-x={-Math.PI / 2} position={[0, 0.01, 34]}>
-        <planeGeometry args={[420, 10]} />
-        <meshStandardMaterial color="#070B18" metalness={0.4} roughness={0.5} />
-      </mesh>
-      {[-1, 1].map((s) => (
-        <mesh key={s} rotation-x={-Math.PI / 2} position={[0, 0.02, 34 + s * 4.8]}>
-          <planeGeometry args={[420, 0.12]} />
-          <meshBasicMaterial color={glow(s > 0 ? CYAN : BRAND_RED, 1.6)} toneMapped={false} />
-        </mesh>
-      ))}
-      {Array.from({ length: 14 }, (_, i) => -91 + i * 14).map((x) => (
-        <mesh key={x} rotation-x={-Math.PI / 2} position={[x, 0.02, 34]}>
-          <planeGeometry args={[5, 0.18]} />
-          <meshBasicMaterial color={glow("#BDF4FF", 1.2)} toneMapped={false} />
-        </mesh>
-      ))}
-      {[[-30, -4], [-30, 6], [30, -4], [30, 6], [-24, 18], [24, 18]].map(([x, z]) => <LightPylon key={`${x}${z}`} pos={[x, 0, z]} />)}
-    </group>
-  );
-}
-
-function LightPylon({ pos }: { pos: Vec3 }) {
-  return (
-    <group position={pos}>
-      <mesh position={[0, 2.2, 0]}><cylinderGeometry args={[0.08, 0.14, 4.4, 12]} /><meshStandardMaterial color="#0B1226" metalness={0.8} roughness={0.3} /></mesh>
-      <mesh position={[0, 4.5, 0]}><sphereGeometry args={[0.22, 16, 16]} /><meshBasicMaterial color={glow(CYAN, 2.5)} toneMapped={false} /></mesh>
-      <pointLight position={[0, 4.4, 0]} color={CYAN} intensity={8} distance={12} />
-    </group>
-  );
-}
-
-function Building({ reducedMotion }: { reducedMotion: boolean }) {
+function Building() {
   const { w, d, h } = BUILDING;
-  const [logo, setLogo] = useState<HTMLImageElement | null>(null);
-  const [fontsReady, setFontsReady] = useState(0);
-  useEffect(() => {
-    const img = new Image();
-    img.onload = () => setLogo(img);
-    img.src = "/logo.jpg";
-    document.fonts?.ready.then(() => setFontsReady((n) => n + 1));
-  }, []);
-  const sign = useMemo(() => signTexture(logo), [logo, fontsReady]);
-  const signRef = useRef<THREE.Group>(null);
-  const crown = useRef<THREE.Group>(null);
-  useFrame(({ clock }) => {
-    if (reducedMotion) return;
-    const t = clock.elapsedTime;
-    if (signRef.current) signRef.current.position.y = h + 3 + Math.sin(t * 0.8) * 0.15;
-    if (crown.current) crown.current.rotation.y = t * 0.06;
-  });
   const glass = useMemo(() => new THREE.MeshPhysicalMaterial({ color: "#5FB8E6", transparent: true, opacity: 0.1,
     roughness: 0.05, metalness: 0.2, side: THREE.DoubleSide, depthWrite: false }), []);
   const fins: [number, number][] = [];
@@ -177,20 +118,6 @@ function Building({ reducedMotion }: { reducedMotion: boolean }) {
       {strip([-2.2, 1.9, d / 2 + 0.1], [0.07, 3.6, 0.07], BRAND_RED, 2)}
       {strip([2.2, 1.9, d / 2 + 0.1], [0.07, 3.6, 0.07], BRAND_RED, 2)}
       {strip([0, 3.7, d / 2 + 0.1], [4.47, 0.07, 0.07], BRAND_RED, 2)}
-      {/* floating crown rings */}
-      <group ref={crown} position={[0, h + 1.6, 0]}>
-        <mesh rotation-x={Math.PI / 2}><torusGeometry args={[13, 0.07, 8, 160]} /><meshBasicMaterial color={glow(CYAN, 1.8)} toneMapped={false} /></mesh>
-        <mesh rotation-x={Math.PI / 2} position={[0, 0.6, 0]}><torusGeometry args={[11.4, 0.04, 8, 160]} /><meshBasicMaterial color={glow(BRAND_RED, 1.8)} toneMapped={false} /></mesh>
-        {Array.from({ length: 24 }, (_, i) => (i / 24) * Math.PI * 2).map((a) => (
-          <mesh key={a} position={[Math.cos(a) * 13, 0, Math.sin(a) * 13]}><boxGeometry args={[0.18, 0.18, 0.18]} />
-            <meshBasicMaterial color={glow("#BDF4FF", 2)} toneMapped={false} /></mesh>
-        ))}
-      </group>
-      {/* floating holographic sign */}
-      <group ref={signRef} position={[0, h + 3, d / 2 + 0.6]}>
-        <mesh><planeGeometry args={[20, 3.71]} /><meshBasicMaterial map={sign} transparent toneMapped={false} /></mesh>
-        <mesh position={[0, -2.2, 0]}><boxGeometry args={[20, 0.06, 0.06]} /><meshBasicMaterial color={glow(BRAND_RED, 2.5)} toneMapped={false} /></mesh>
-      </group>
     </group>
   );
 }
@@ -357,14 +284,14 @@ function statusScreen(status: string): THREE.CanvasTexture {
 // Each agent gets its own colour; agents added later get one from the palette.
 const BOT_COLORS: Record<string, string> = {
   executive: "#FFE81A",   // Ace: neon yellow
-  seo: "#FF2A2A",         // Pipeline: neon red
+  seo: "#00FFC8",         // Pipeline: plasma teal
   competitor: "#1FA9FF",  // Bluff: electric blue
   marketing: "#A9B6C2",   // Wildcard: battleship-grey steel, lit up
   customer: "#39FF14",    // Dealer: neon green
   technical: "#FF7A00",   // Torque: neon orange
-  growth: "#00E676",      // Jackpot: money green
+  growth: "#FF1F1F",      // Jackpot: hot-rod red (the only red)
 };
-const PALETTE = ["#00F0FF", "#FFE81A", "#FF2A2A", "#1FA9FF", "#39FF14", "#FF7A00"];
+const PALETTE = ["#00F0FF", "#FFE81A", "#00FFC8", "#1FA9FF", "#39FF14", "#FF7A00"];
 function botColorFor(id: string): string {
   if (BOT_COLORS[id]) return BOT_COLORS[id];
   let h = 0;
@@ -505,35 +432,6 @@ function Workstation({ agent, dept, selected, onSelect, reducedMotion, occluders
           <strong>{agent.name}</strong><span>{STATUS_LABEL[agent.status]}</span>
         </div>
       </Html>
-    </group>
-  );
-}
-
-function HoverVan({ reducedMotion }: { reducedMotion: boolean }) {
-  const side = useMemo(() => textTexture([
-    { text: "Straight Flush", size: 110, color: "#16213E", weight: 700 },
-    { text: "Plumbing & Leak Detection  ·  (949) 374-6524", size: 52, color: "#D9432E", weight: 600 },
-  ], 1400, 340, "#F4F8FF"), []);
-  const van = useRef<THREE.Group>(null);
-  useFrame(({ clock }) => { if (van.current && !reducedMotion) van.current.position.y = 0.9 + Math.sin(clock.elapsedTime * 1.5) * 0.12; });
-  return (
-    <group position={[-12, 0, 22]} rotation-y={0.12}>
-      <mesh rotation-x={-Math.PI / 2} position={[0, 0.03, 0]}><planeGeometry args={[6.6, 2.8]} />
-        <meshBasicMaterial color={glow(CYAN, 1.2)} transparent opacity={0.35} toneMapped={false} /></mesh>
-      <pointLight position={[0, 0.4, 0]} color={CYAN} intensity={10} distance={6} />
-      <group ref={van} position={[0, 0.9, 0]}>
-        <RoundedBox args={[6.2, 2.4, 2.4]} radius={0.5} smoothness={6} position={[0, 1.2, 0]}>
-          <meshPhysicalMaterial color="#F4F8FF" metalness={0.3} roughness={0.15} clearcoat={1} />
-        </RoundedBox>
-        <mesh position={[0, 1.25, 1.21]}><planeGeometry args={[4.6, 1.12]} /><meshBasicMaterial map={side} toneMapped={false} /></mesh>
-        <mesh position={[2.95, 1.6, 0]}><boxGeometry args={[0.4, 0.9, 2.2]} /><meshPhysicalMaterial color="#0B1430" metalness={0.6} roughness={0.05} clearcoat={1} /></mesh>
-        <mesh position={[0, 0.02, 1.21]}><boxGeometry args={[6, 0.05, 0.02]} /><meshBasicMaterial color={glow(BRAND_RED, 2.5)} toneMapped={false} /></mesh>
-        <mesh position={[0, 0.02, -1.21]}><boxGeometry args={[6, 0.05, 0.02]} /><meshBasicMaterial color={glow(BRAND_RED, 2.5)} toneMapped={false} /></mesh>
-        {[-2.2, 2.2].map((x) => (
-          <mesh key={x} position={[x, -0.05, 0]} rotation-x={Math.PI / 2}><torusGeometry args={[0.55, 0.06, 8, 32]} />
-            <meshBasicMaterial color={glow(CYAN, 2.4)} toneMapped={false} /></mesh>
-        ))}
-      </group>
     </group>
   );
 }
