@@ -104,8 +104,8 @@ def test_loop_reaches_owner_and_approval_works_from_ui(page):
 
 
 def test_agent_desk_shows_history_and_task_detail(page):
-    page.locator(".roster button", has_text="Nova").click()
-    page.wait_for_selector(".agent-head h2:has-text('Nova')")
+    page.locator(".roster button", has_text="Pipeline").click()
+    page.wait_for_selector(".agent-head h2:has-text('Pipeline')")
     page.wait_for_timeout(2500)
     n = len(api("/api/agents/seo/tasks"))
     assert page.locator(".tasks .task").count() == n

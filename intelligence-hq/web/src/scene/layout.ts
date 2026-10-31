@@ -6,13 +6,13 @@ export interface Dept { id: string; label: string; pos: Vec3; color: string; fac
 export const BUILDING = { w: 44, d: 28, h: 7.2 };
 
 export const DEPARTMENTS: Dept[] = [
-  { id: "executive", label: "Executive Office", pos: [0, 0, -9.5], color: "#1D4C87", facing: 0 },
-  { id: "seo", label: "Local SEO & Google Business", pos: [-15, 0, 6], color: "#2F6FD6", facing: Math.PI / 2 },
-  { id: "competitor", label: "Competitor Intelligence", pos: [-15, 0, -1.5], color: "#6B4FA0", facing: Math.PI / 2 },
-  { id: "technical", label: "Plumbing Research & Technical", pos: [-15, 0, -9], color: "#B87333", facing: Math.PI / 2 },
-  { id: "marketing", label: "Marketing & Content", pos: [15, 0, 6], color: "#D9432E", facing: -Math.PI / 2 },
-  { id: "customer", label: "Customer Operations", pos: [15, 0, -1.5], color: "#2C7A72", facing: -Math.PI / 2 },
-  { id: "growth", label: "Business Growth", pos: [15, 0, -9], color: "#C08A2E", facing: -Math.PI / 2 },
+  { id: "executive", label: "Executive Office", pos: [0, 0, -9.5], color: "#FFE81A", facing: 0 },
+  { id: "seo", label: "Local SEO & Google Business", pos: [-15, 0, 6], color: "#FF2A2A", facing: Math.PI / 2 },
+  { id: "competitor", label: "Competitor Intelligence", pos: [-15, 0, -1.5], color: "#1FA9FF", facing: Math.PI / 2 },
+  { id: "technical", label: "Plumbing Research & Technical", pos: [-15, 0, -9], color: "#FF7A00", facing: Math.PI / 2 },
+  { id: "marketing", label: "Marketing & Content", pos: [15, 0, 6], color: "#A9B6C2", facing: -Math.PI / 2 },
+  { id: "customer", label: "Customer Operations", pos: [15, 0, -1.5], color: "#39FF14", facing: -Math.PI / 2 },
+  { id: "growth", label: "Business Growth", pos: [15, 0, -9], color: "#00E676", facing: -Math.PI / 2 },
 ];
 
 export const deptById = (id: string) => DEPARTMENTS.find((d) => d.id === id);
@@ -32,7 +32,7 @@ export const CAMERAS: CameraPreset[] = [
   { id: "exterior", label: "Outside", pos: [26, 17, 46], target: [0, 3, 0] },
   { id: "lobby", label: "Lobby", pos: [6, 6, 26], target: [0, 2.2, 6] },
   { id: "operations", label: "Operations room", pos: [0, 4.6, 8.5], target: [0, 3.3, -1.5] },
-  { id: "executive", label: "Executive office", pos: [0, 6, 0], target: [0, 1.5, -9.5] },
+  { id: "executive", label: "Executive office", pos: [7, 4.2, -3.5], target: [0, 1.8, -9.5] },
   { id: "west", label: "Research wing", pos: [-4, 8, 6], target: [-15, 1.5, -2] },
   { id: "east", label: "Growth wing", pos: [4, 8, 6], target: [15, 1.5, -2] },
 ];

@@ -28,7 +28,7 @@ export HQ_SIMULATED_LATENCY_S=2                       # optional: slows the simu
 
 Open http://127.0.0.1:8000, click **Owner sign-in** and paste the token. Without the token the office is
 read-only. Try **Objectives → Start objective** (e.g. "Get more slab leak calls from Mission Viejo") and
-watch Harper plan, the specialists work and review, and the recommendation land in **Approvals**.
+watch Ace plan, the specialists work and review, and the recommendation land in **Approvals**.
 
 Data is stored in `backend/hq.db` (SQLite). For PostgreSQL:
 `export HQ_DATABASE_URL=postgresql+psycopg://user:pass@host/dbname` (tables are created on start).
@@ -52,20 +52,20 @@ Set **Controls → Limits** first: daily tasks, tokens and dollars are capped (d
 $10 per day). Costs are estimated from real token counts and the editable price table.
 
 With a real model, agents can read public web pages they ask for (`web.fetch`, up to 3 per task, private
-and internal addresses blocked) and Nova can audit straightflushplumbingoc.com from its sitemap
+and internal addresses blocked) and Pipeline can audit straightflushplumbingoc.com from its sitemap
 (`site.audit`, read-only, approved origins only).
 
 ## The workforce
 
 | Agent | Role | Tools | Can hand work to |
 |---|---|---|---|
-| Harper | Executive Operations Manager | plan objectives, consolidate, delegate | anyone |
-| Nova | Local SEO & Google Business | read web pages, site audit, delegate | Paige, Scout, Harper |
-| Scout | Competitor Intelligence | read web pages, delegate | Nova, Paige, Harper |
-| Paige | Marketing & Content | read web pages, draft content for approval, delegate | Nova, Tess, Harper |
-| Cora | Customer Operations | draft customer messages for approval | Harper |
-| Tess | Plumbing Technical Research | read web pages, delegate | Paige, Harper |
-| Miles | Business Growth & Opportunity | read web pages, delegate | Scout, Nova, Harper |
+| Ace | Executive Operations Manager | plan objectives, consolidate, delegate | anyone |
+| Pipeline | Local SEO & Google Business | read web pages, site audit, delegate | Wildcard, Bluff, Ace |
+| Bluff | Competitor Intelligence | read web pages, delegate | Pipeline, Wildcard, Ace |
+| Wildcard | Marketing & Content | read web pages, draft content for approval, delegate | Pipeline, Torque, Ace |
+| Dealer | Customer Operations | draft customer messages for approval | Ace |
+| Torque | Plumbing Technical Research | read web pages, delegate | Wildcard, Ace |
+| Jackpot | Business Growth & Opportunity | read web pages, delegate | Bluff, Pipeline, Ace |
 
 Each has a system prompt (`backend/hq/agents.py`) with company facts, its role, a personality and hard
 rules: never fabricate, only verified services and claims, draft and recommend only. Each also has
@@ -77,12 +77,12 @@ as approval requests. Approving a customer message marks it approved; you still 
 
 ## How the improvement loop works
 
-1. Lance sets an objective. Harper plans it into 2 to 5 tasks for the right specialists.
+1. Lance sets an objective. Ace plans it into 2 to 5 tasks for the right specialists.
 2. Specialists work. Any of them can create follow-up tasks for agents they're allowed to hand work to
    (shown as a water pulse travelling through the pipes between departments).
-3. Each finished task is peer-reviewed (Nova reviews Scout, Paige reviews Nova, and so on).
+3. Each finished task is peer-reviewed (Pipeline reviews Bluff, Wildcard reviews Pipeline, and so on).
 4. Reviews that find problems send correction tasks back to the original agent.
-5. Harper consolidates everything into one recommendation, which goes to **Approvals**.
+5. Ace consolidates everything into one recommendation, which goes to **Approvals**.
 6. Lance approves or rejects it. Either way it's logged.
 
 Guards, all owner-editable: chain depth 3, 20 tasks per objective, 3 follow-ups per task, 1 review round,
@@ -114,13 +114,13 @@ accounts (one owner token today); a hosted deployment.
 ## Tests
 
 ```bash
-cd backend && python -m pytest            # 48 tests; the PostgreSQL test runs when PG 16 binaries exist
+cd backend && python -m pytest            # 49 tests; the PostgreSQL test runs when PG 16 binaries exist
 # browser end-to-end against a running server:
 HQ_E2E_URL=http://localhost:8000 HQ_E2E_TOKEN=$HQ_OWNER_TOKEN python -m pytest e2e
 cd web && npm run typecheck
 ```
 
-Last run, 2026-10-30: **backend 48/48 passed** (including a full loop and restart on PostgreSQL 16),
+Last run, 2026-10-31: **backend 49/49 passed** (including a full loop and restart on PostgreSQL 16),
 **browser end-to-end 6/6 passed**, TypeScript clean. Coverage of the required areas:
 
 | Area | Tests |

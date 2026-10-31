@@ -521,3 +521,16 @@ def test_audit_log_is_append_only_in_application_code(make):
     import re
     src = "".join(p.read_text() for p in pathlib.Path(__file__).parents[1].joinpath("hq").glob("*.py"))
     assert not re.search(r"delete\(\s*Event", src) and "Event.message =" not in src
+
+
+def test_built_in_identity_syncs_on_restart_but_owner_permissions_survive(make, owner, tmp_path):
+    url = f"sqlite:///{tmp_path}/sync.db"
+    hq, c, _ = make(db_url=url)
+    c.patch("/api/agents/seo", headers=owner, json={"permissions": ["llm.reason"]})
+    with hq.tx() as s:
+        from hq.db import Agent
+        s.get(Agent, "seo").name = "Old Name"
+    _, c2, _ = make(db_url=url)
+    a = c2.get("/api/agents/seo").json()
+    assert a["name"] == "Pipeline" and a["permissions"] == ["llm.reason"]
+    assert any(e["type"] == "agent.renamed" for e in c2.get("/api/events").json())

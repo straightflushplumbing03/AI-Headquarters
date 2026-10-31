@@ -138,6 +138,14 @@ class HQ:
                                 can_delegate_to=d["can_delegate_to"]))
                     s.flush()
                     self.log(s, "agent.created", f"{d['name']} ({d['title']}) joined the headquarters", d["id"])
+                else:
+                    # Built-in identities live in code: keep name, prompt and personality in sync on start-up.
+                    # Permissions and delegation are owner-editable and are left alone.
+                    a = s.get(Agent, d["id"])
+                    if a.name != d["name"]:
+                        self.log(s, "agent.renamed", f"{a.name} is now {d['name']}", a.id)
+                    a.name, a.title, a.personality = d["name"], d["title"], d["personality"]
+                    a.system_prompt, a.responsibilities = agent_defs.system_prompt(d), d["responsibilities"]
             defaults = {
                 "limits": DEFAULT_LIMITS, "pricing": DEFAULT_PRICING, "paused": False, "emergency_stop": False,
                 "provider": {"name": None, "model": None},  # None = use environment config

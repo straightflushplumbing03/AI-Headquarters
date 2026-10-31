@@ -26,7 +26,7 @@ export function ObjectivesPanel({ objectives, agents, owner, tick, openTask, not
     e.preventDefault();
     try {
       const o = await post<Objective>("/api/objectives", { title, description: desc });
-      notify("Harper is planning the objective"); setTitle(""); setDesc(""); setOpen(o.id);
+      notify("Ace is planning the objective"); setTitle(""); setDesc(""); setOpen(o.id);
     } catch (err) { notify(String(err), true); }
   };
 
@@ -40,7 +40,7 @@ export function ObjectivesPanel({ objectives, agents, owner, tick, openTask, not
           <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={2} aria-label="Objective details"
             placeholder="Anything the team should know (optional)" />
           <button type="submit">Start objective</button>
-          <p className="muted small">Harper splits it into tasks, the specialists work and review each other, and the final recommendation comes back to you for approval.</p>
+          <p className="muted small">Ace splits it into tasks, the specialists work and review each other, and the final recommendation comes back to you for approval.</p>
         </form>
       )}
       {objectives.length === 0 ? <Empty>No objectives yet.</Empty> : (

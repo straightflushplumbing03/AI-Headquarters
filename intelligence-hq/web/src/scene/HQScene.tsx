@@ -356,10 +356,15 @@ function statusScreen(status: string): THREE.CanvasTexture {
 
 // Each agent gets its own colour; agents added later get one from the palette.
 const BOT_COLORS: Record<string, string> = {
-  executive: "#FFB020", seo: "#3D8BFF", competitor: "#A45CFF", marketing: "#FF4FA3",
-  customer: "#2FD9A6", technical: "#FF7A2F", growth: "#8CFF4F",
+  executive: "#FFE81A",   // Ace: neon yellow
+  seo: "#FF2A2A",         // Pipeline: neon red
+  competitor: "#1FA9FF",  // Bluff: electric blue
+  marketing: "#A9B6C2",   // Wildcard: battleship-grey steel, lit up
+  customer: "#39FF14",    // Dealer: neon green
+  technical: "#FF7A00",   // Torque: neon orange
+  growth: "#00E676",      // Jackpot: money green
 };
-const PALETTE = ["#4FD8FF", "#FFD84F", "#FF6B6B", "#B98CFF", "#4FFFB0", "#FF9F4F"];
+const PALETTE = ["#00F0FF", "#FFE81A", "#FF2A2A", "#1FA9FF", "#39FF14", "#FF7A00"];
 function botColorFor(id: string): string {
   if (BOT_COLORS[id]) return BOT_COLORS[id];
   let h = 0;
@@ -445,8 +450,8 @@ function Workstation({ agent, dept, selected, onSelect, reducedMotion, occluders
         <group ref={head}>
           <mesh>
             <sphereGeometry args={[0.55, 48, 48]} />
-            <meshPhysicalMaterial color={botColor} metalness={0.25} roughness={0.18} clearcoat={1} clearcoatRoughness={0.08}
-              emissive={botColor} emissiveIntensity={selected || hover ? 0.45 : off ? 0.02 : 0.14} />
+            <meshPhysicalMaterial color={botColor} metalness={0.2} roughness={0.25} clearcoat={0.8} clearcoatRoughness={0.15}
+              emissive={botColor} emissiveIntensity={selected || hover ? 0.9 : off ? 0.03 : 0.55} />
           </mesh>
           {/* glass face */}
           <mesh>
@@ -465,7 +470,7 @@ function Workstation({ agent, dept, selected, onSelect, reducedMotion, occluders
           {[-1, 1].map((sx) => (
             <mesh key={sx} position={[sx * 0.55, 0, 0]} scale={[0.45, 1, 1]}>
               <sphereGeometry args={[0.14, 20, 20]} />
-              <meshPhysicalMaterial color="#EAF2FF" metalness={0.5} roughness={0.15} clearcoat={1} />
+              <meshPhysicalMaterial color="#3A4048" metalness={0.85} roughness={0.35} />
             </mesh>
           ))}
           {/* antenna */}

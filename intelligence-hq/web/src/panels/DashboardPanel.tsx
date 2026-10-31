@@ -73,7 +73,7 @@ export default function DashboardPanel({ d, agents, openTask }: { d: Dashboard |
       </Section>
 
       <Section title="Business opportunities">
-        {d.opportunities.length === 0 ? <Empty>Miles hasn't completed any opportunity research yet.</Empty> : (
+        {d.opportunities.length === 0 ? <Empty>Jackpot hasn't completed any opportunity research yet.</Empty> : (
           <ul className="rows">{d.opportunities.map((o) => (
             <li key={o.id}><button className="linklike" onClick={() => openTask(o.id)}>{o.title} <Sim on={o.simulated} />
               <span className="clip">{o.summary}</span></button></li>
@@ -82,7 +82,7 @@ export default function DashboardPanel({ d, agents, openTask }: { d: Dashboard |
       </Section>
 
       <Section title="Website and SEO monitoring">
-        {!d.website_monitoring ? <Empty>No site audit has run. Turn on the weekly audit schedule in Controls, or ask Nova for one.</Empty> : (
+        {!d.website_monitoring ? <Empty>No site audit has run. Turn on the weekly audit schedule in Controls, or ask Pipeline for one.</Empty> : (
           <p><button className="linklike" onClick={() => openTask(d.website_monitoring!.task_id)}>
             Last audit {ago(d.website_monitoring.finished_at)}: {d.website_monitoring.status}, {d.website_monitoring.pages_checked ?? 0} pages checked,
             {" "}{d.website_monitoring.issues} issues</button></p>
