@@ -30,7 +30,7 @@ export interface CameraPreset { id: string; label: string; pos: Vec3; target: Ve
 
 export const CAMERAS: CameraPreset[] = [
   { id: "exterior", label: "Outside", pos: [26, 17, 46], target: [0, 3, 0] },
-  { id: "lobby", label: "Lobby", pos: [2.5, 4.6, 20], target: [0, 2.2, 5] },
+  { id: "lobby", label: "Lobby", pos: [6, 6, 26], target: [0, 2.2, 6] },
   { id: "operations", label: "Operations room", pos: [0, 4.6, 8.5], target: [0, 3.3, -1.5] },
   { id: "executive", label: "Executive office", pos: [0, 6, 0], target: [0, 1.5, -9.5] },
   { id: "west", label: "Research wing", pos: [-4, 8, 6], target: [-15, 1.5, -2] },

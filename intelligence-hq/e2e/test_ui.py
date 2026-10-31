@@ -46,6 +46,7 @@ def stat(p, label):
 
 
 def test_dashboard_matches_backend(page):
+    page.wait_for_timeout(3000)  # let the first frames render before the screenshot
     d = api("/api/dashboard")
     assert stat(page, "tasks done") == d["tasks_completed"]
     assert stat(page, "agents online") == d["agents_online"]
