@@ -75,7 +75,8 @@ def test_owner_runs_objective_and_office_shows_real_work(page):
             if backend_now != "idle":
                 assert backend_now.capitalize() in ui
                 seen_working = True
-                page.click('button:has-text("Operations room")')
+                page.click('button:has-text("Enter HQ")')
+                page.wait_for_timeout(3500)
                 page.wait_for_timeout(1500)
                 shot(page, "02-working")
         time.sleep(0.4)

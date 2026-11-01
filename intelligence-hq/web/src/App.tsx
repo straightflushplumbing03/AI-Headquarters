@@ -89,7 +89,8 @@ export default function App() {
         <div className="scene" aria-label="3D view of the headquarters. Click an agent to open their desk.">
           <Suspense fallback={<div className="scene-loading">Building the headquarters…</div>}>
             <HQScene agents={hq.agents} dashboard={d} handoffs={hq.handoffs} selected={selected} onSelect={selectAgent}
-              camera={camera} reducedMotion={reducedMotion} />
+              camera={camera} reducedMotion={reducedMotion}
+              onEnter={() => setCamera(CAMERAS.find((c) => c.id === "enter") ?? CAMERAS[0])} />
           </Suspense>
           <nav className="camdock" aria-label="Go to">
             {CAMERAS.map((c) => (

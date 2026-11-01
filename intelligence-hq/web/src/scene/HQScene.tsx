@@ -1,198 +1,93 @@
-import { Edges, Html, OrbitControls, RoundedBox, Sparkles } from "@react-three/drei";
+import { Html, OrbitControls, RoundedBox, Sparkles } from "@react-three/drei";
 import { Canvas, ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { Agent, Dashboard, STATUS_LABEL } from "../api";
-import { BUILDING, CameraPreset, DEPARTMENTS, Dept, STATUS_COLOR, Vec3, deskFor } from "./layout";
-import CampusWorld from "./CampusWorld";
-import { flowTexture, holoTexture, textTexture } from "./textures";
+import { CameraPreset, DEPARTMENTS, Dept, STATUS_COLOR, Vec3, deskFor } from "./layout";
+import Loft from "./Loft";
+import Oceanfront from "./Oceanfront";
+import { OfficeChair, Plant, WOOD, WOOD_LIGHT, glow } from "./props";
+import { monitorTexture, plaqueTexture, sideMonitorTexture, useBrand, useCanvasTexture } from "./screens";
+import { flowTexture } from "./textures";
 
-const PIPE_Y = 6.3;
-const MAIN_Z = -1.5;
-const CYAN = "#22D3EE";
+const PIPE_Y = 6.1;
+const MAIN_Z = 1.25;
 const BRAND_RED = "#FF4B36";
-const COPPER = "#E08A4B";
-
-/** Brighter-than-white colour so bloom picks it up. */
-const glow = (hex: string, k = 2.2) => new THREE.Color(hex).multiplyScalar(k);
+const COPPER = "#C9874B";
+const FLOOR_Y = 0.2;
 
 interface Props {
   agents: Agent[]; dashboard: Dashboard | null; handoffs: { id: number; from: string; to: string; at: number }[];
-  selected: string | null; onSelect: (id: string) => void; camera: CameraPreset; reducedMotion: boolean;
+  selected: string | null; onSelect: (id: string) => void; camera: CameraPreset; reducedMotion: boolean; onEnter: () => void;
 }
 
 export default function HQScene(p: Props) {
   const screenRef = useRef<THREE.Mesh>(null!);
   return (
-    <Canvas dpr={[1, 1.75]} camera={{ position: p.camera.pos, fov: 42, near: 0.1, far: 900 }}
-      gl={{ antialias: true }} onCreated={({ gl }) => { gl.toneMapping = THREE.ACESFilmicToneMapping; gl.toneMappingExposure = 1.15; }}>
-      <color attach="background" args={["#1A1C33"]} />
-      <fog attach="fog" args={["#2B2A48", 140, 800]} />
-      <ambientLight intensity={0.3} color="#8C96C8" />
-      <hemisphereLight args={["#8A7AB8", "#1A1410", 0.55]} />
-      <directionalLight position={[-160, 45, -60]} intensity={1.5} color="#FFAE72" />
-      <directionalLight position={[80, 40, 120]} intensity={0.45} color="#8FB4FF" />
-      <pointLight position={[0, 9, 4]} intensity={60} distance={40} color="#6FD3FF" />
-      <pointLight position={[-15, 6, -2]} intensity={30} distance={22} color="#5B7BFF" />
-      <pointLight position={[15, 6, -2]} intensity={30} distance={22} color="#FF7A55" />
+    <Canvas dpr={[1, 1.75]} camera={{ position: p.camera.pos, fov: 42, near: 0.1, far: 1800 }}
+      gl={{ antialias: true }} onCreated={({ gl }) => { gl.toneMapping = THREE.ACESFilmicToneMapping; gl.toneMappingExposure = 1.1; }}>
+      <color attach="background" args={["#2A2340"]} />
+      <fog attach="fog" args={["#5A3A4A", 260, 1300]} />
+      <ambientLight intensity={0.28} color="#B9A6C8" />
+      <hemisphereLight args={["#9C7FB8", "#2A1E16", 0.55]} />
+      <directionalLight position={[20, 40, -220]} intensity={1.6} color="#FFA460" />
+      <directionalLight position={[80, 60, 140]} intensity={0.35} color="#8FA8FF" />
       <CameraRig preset={p.camera} reducedMotion={p.reducedMotion} />
-      <CampusWorld dashboard={p.dashboard} reducedMotion={p.reducedMotion} />
-      <Building />
-      <Lobby />
-      <OperationsCore dashboard={p.dashboard} screenRef={screenRef} reducedMotion={p.reducedMotion} />
+      <Oceanfront reducedMotion={p.reducedMotion} />
+      <Loft dashboard={p.dashboard} agents={p.agents} screenRef={screenRef} onEnter={p.onEnter} />
       <PipeNetwork reducedMotion={p.reducedMotion} />
       {p.agents.map((a, i) => (
-        <Workstation key={a.id} agent={a} dept={deskFor(a.id, i)} selected={p.selected === a.id}
+        <Workstation key={a.id} agent={a} agents={p.agents} dept={deskFor(a.id, i)} selected={p.selected === a.id}
           onSelect={p.onSelect} reducedMotion={p.reducedMotion} occluders={[screenRef]} />
       ))}
       {p.handoffs.map((h) => <WaterPulse key={h.id} from={h.from} to={h.to} start={h.at} />)}
-      {!p.reducedMotion && <Sparkles count={140} scale={[42, 6, 26]} position={[0, 3.4, 0]} size={2.4} speed={0.25} color="#8FE6FF" opacity={0.6} />}
+      {!p.reducedMotion && <Sparkles count={90} scale={[40, 5, 24]} position={[0, 3.6, 0]} size={1.6} speed={0.15} color="#FFD9A0" opacity={0.35} />}
       <EffectComposer multisampling={4}>
-        <Bloom mipmapBlur intensity={1.15} luminanceThreshold={0.85} luminanceSmoothing={0.2} radius={0.75} />
-        <Vignette eskil={false} offset={0.2} darkness={0.75} />
+        <Bloom mipmapBlur intensity={0.9} luminanceThreshold={0.9} luminanceSmoothing={0.2} radius={0.7} />
+        <Vignette eskil={false} offset={0.22} darkness={0.6} />
       </EffectComposer>
     </Canvas>
   );
 }
 
 // ------------------------------------------------------------------------------------------------------------ camera
+/** Glides to a preset, or flies a path through `via` points (used to walk in through the front doors). */
 function CameraRig({ preset, reducedMotion }: { preset: CameraPreset; reducedMotion: boolean }) {
   const controls = useRef<OrbitControlsImpl>(null);
   const { camera } = useThree();
-  const goal = useRef({ pos: new THREE.Vector3(...preset.pos), target: new THREE.Vector3(...preset.target), active: true });
+  const goal = useRef<{ pos: THREE.Vector3; target: THREE.Vector3; active: boolean; path?: THREE.CatmullRomCurve3; t0?: number; from?: THREE.Vector3 }>(
+    { pos: new THREE.Vector3(...preset.pos), target: new THREE.Vector3(...preset.target), active: true });
   useEffect(() => {
-    goal.current = { pos: new THREE.Vector3(...preset.pos), target: new THREE.Vector3(...preset.target), active: true };
-  }, [preset]);
+    const pos = new THREE.Vector3(...preset.pos), target = new THREE.Vector3(...preset.target);
+    if (preset.via && !reducedMotion) {
+      const pts = [camera.position.clone(), ...preset.via.map((v) => new THREE.Vector3(...v)), pos];
+      goal.current = { pos, target, active: true, path: new THREE.CatmullRomCurve3(pts, false, "centripetal"), t0: performance.now(),
+        from: controls.current?.target.clone() ?? target.clone() };
+    } else goal.current = { pos, target, active: true };
+  }, [preset, camera, reducedMotion]);
   useFrame((_, dt) => {
-    const g = goal.current;
-    const c = controls.current;
+    const g = goal.current, c = controls.current;
     if (!g.active || !c) return;
+    if (g.path && g.t0 !== undefined) {
+      const raw = Math.min(1, (performance.now() - g.t0) / 4200);
+      const s = raw < 0.5 ? 2 * raw * raw : 1 - Math.pow(-2 * raw + 2, 2) / 2;
+      camera.position.copy(g.path.getPointAt(s));
+      const ahead = g.path.getPointAt(Math.min(1, s + 0.06)).setY(camera.position.y - 0.4);
+      c.target.copy(s < 0.7 ? ahead : ahead.lerp(g.target, (s - 0.7) / 0.3));
+      c.update();
+      if (raw >= 1) { c.target.copy(g.target); g.active = false; }
+      return;
+    }
     const k = reducedMotion ? 1 : 1 - Math.pow(0.02, dt);
     camera.position.lerp(g.pos, k);
     c.target.lerp(g.target, k);
     c.update();
     if (camera.position.distanceTo(g.pos) < 0.05 && c.target.distanceTo(g.target) < 0.05) g.active = false;
   });
-  return <OrbitControls ref={controls} makeDefault enableDamping maxPolarAngle={Math.PI / 2.05} minDistance={3}
-    maxDistance={230} onStart={() => { goal.current.active = false; }} />;
-}
-
-// ------------------------------------------------------------------------------------------------------------ site
-function Building() {
-  const { w, d, h } = BUILDING;
-  const glass = useMemo(() => new THREE.MeshPhysicalMaterial({ color: "#5FB8E6", transparent: true, opacity: 0.1,
-    roughness: 0.05, metalness: 0.2, side: THREE.DoubleSide, depthWrite: false }), []);
-  const fins: [number, number][] = [];
-  for (let x = -w / 2; x <= w / 2 + 0.01; x += w / 8) { if (Math.abs(x) > 2) fins.push([x, d / 2]); fins.push([x, -d / 2]); }
-  for (let z = -d / 2 + d / 4; z < d / 2; z += d / 4) { fins.push([-w / 2, z]); fins.push([w / 2, z]); }
-  const strip = (pos: Vec3, size: Vec3, color: string, k = 2) => (
-    <mesh position={pos}><boxGeometry args={size} /><meshBasicMaterial color={glow(color, k)} toneMapped={false} /></mesh>
-  );
-  return (
-    <group>
-      {/* floating floor slab with neon edges */}
-      <mesh position={[0, 0.1, 0]}><boxGeometry args={[w + 1, 0.2, d + 1]} />
-        <meshStandardMaterial color="#0A1124" metalness={0.75} roughness={0.22} /></mesh>
-      {strip([0, 0.21, d / 2 + 0.5], [w + 1, 0.06, 0.06], BRAND_RED, 2.4)}
-      {strip([0, 0.21, -d / 2 - 0.5], [w + 1, 0.06, 0.06], CYAN)}
-      {strip([-w / 2 - 0.5, 0.21, 0], [0.06, 0.06, d + 1], CYAN)}
-      {strip([w / 2 + 0.5, 0.21, 0], [0.06, 0.06, d + 1], CYAN)}
-      {/* glass volume with glowing outline */}
-      <mesh position={[0, h / 2 + 0.2, 0]}>
-        <boxGeometry args={[w, h, d]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-        <Edges threshold={15} color={glow(CYAN, 1.6)} />
-      </mesh>
-      <mesh position={[0, h / 2 + 0.2, d / 2]} material={glass}><planeGeometry args={[w, h]} /></mesh>
-      <mesh position={[-w / 2, h / 2 + 0.2, 0]} rotation-y={Math.PI / 2} material={glass}><planeGeometry args={[d, h]} /></mesh>
-      <mesh position={[w / 2, h / 2 + 0.2, 0]} rotation-y={-Math.PI / 2} material={glass}><planeGeometry args={[d, h]} /></mesh>
-      <mesh position={[0, h / 2 + 0.2, -d / 2]}><boxGeometry args={[w, h, 0.3]} /><meshStandardMaterial color="#0B1430" metalness={0.5} roughness={0.4} /></mesh>
-      {[-16, -8, 0, 8, 16].map((x) => strip([x, h / 2 + 0.2, -d / 2 + 0.17], [0.08, h - 0.6, 0.02], "#3D6BFF", 1.4))}
-      {fins.map(([x, z], i) => (
-        <mesh key={i} position={[x, h / 2 + 0.2, z]}><boxGeometry args={[0.12, h, 0.12]} />
-          <meshBasicMaterial color={glow(i % 3 ? "#2A5FD0" : CYAN, 0.9)} toneMapped={false} /></mesh>
-      ))}
-      {/* entrance arch */}
-      {strip([-2.2, 1.9, d / 2 + 0.1], [0.07, 3.6, 0.07], BRAND_RED, 2)}
-      {strip([2.2, 1.9, d / 2 + 0.1], [0.07, 3.6, 0.07], BRAND_RED, 2)}
-      {strip([0, 3.7, d / 2 + 0.1], [4.47, 0.07, 0.07], BRAND_RED, 2)}
-    </group>
-  );
-}
-
-function Lobby() {
-  const wall = useMemo(() => textTexture([
-    { text: "STRAIGHT FLUSH PLUMBING & LEAK DETECTION", size: 66, color: "#E6FBFF", weight: 700 },
-    { text: "Intelligence headquarters · Laguna Niguel, California", size: 40, color: "#7FD8FF", weight: 500 },
-  ], 1600, 260, null, CYAN), []);
-  return (
-    <group position={[0, 0, 9]}>
-      <mesh rotation-x={-Math.PI / 2} position={[0, 0.22, 1]}><circleGeometry args={[4.5, 64]} />
-        <meshStandardMaterial color="#0E1834" metalness={0.8} roughness={0.2} /></mesh>
-      <mesh rotation-x={-Math.PI / 2} position={[0, 0.23, 1]}><ringGeometry args={[4.4, 4.55, 96]} />
-        <meshBasicMaterial color={glow(CYAN, 1.8)} toneMapped={false} /></mesh>
-      <RoundedBox args={[5, 1.1, 1.1]} radius={0.3} smoothness={6} position={[0, 0.8, 0]}>
-        <meshPhysicalMaterial color="#0C1430" metalness={0.6} roughness={0.15} clearcoat={1} />
-      </RoundedBox>
-      <mesh position={[0, 0.3, 0.56]}><boxGeometry args={[4.6, 0.05, 0.02]} /><meshBasicMaterial color={glow(CYAN, 2.4)} toneMapped={false} /></mesh>
-      <mesh position={[0, 1.36, 0]}><boxGeometry args={[5.05, 0.02, 1.15]} /><meshBasicMaterial color={glow(COPPER, 0.7)} toneMapped={false} /></mesh>
-      <mesh position={[0, 2.8, -3.2]}><planeGeometry args={[10, 1.63]} /><meshBasicMaterial map={wall} transparent toneMapped={false} /></mesh>
-    </group>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------- operations core
-function OperationsCore({ dashboard, screenRef, reducedMotion }:
-  { dashboard: Dashboard | null; screenRef: React.MutableRefObject<THREE.Mesh>; reducedMotion: boolean }) {
-  const tex = useMemo(() => {
-    if (!dashboard) return holoTexture([{ text: "Connecting to headquarters…", size: 56, color: "#9FE8FF" }]);
-    const d = dashboard;
-    const empty = d.tasks_completed + d.tasks_in_progress + d.tasks_pending + d.tasks_failed === 0;
-    return holoTexture(empty
-      ? [{ text: "LIVE COMPANY INTELLIGENCE", size: 58, color: "#E6FBFF", weight: 700 },
-         { text: "No work recorded yet", size: 50, color: "#9FE8FF" },
-         { text: `${d.agents_online} of ${d.agents_total} agents online`, size: 44, color: "#5BF0D2" }]
-      : [{ text: "LIVE COMPANY INTELLIGENCE", size: 54, color: "#E6FBFF", weight: 700 },
-         { text: `${d.agents_working} working · ${d.agents_idle} idle · ${d.agents_error} error`, size: 46, color: "#5BF0D2" },
-         { text: `${d.tasks_completed} done · ${d.tasks_in_progress} running · ${d.tasks_pending} queued`, size: 46, color: "#BDF4FF" },
-         { text: `${d.tasks_failed} failed · ${d.pending_approvals} awaiting Lance`, size: 46, color: d.tasks_failed ? "#FF8A7A" : "#BDF4FF" },
-         { text: d.controls.emergency_stop ? "EMERGENCY STOP ACTIVE" : d.controls.paused ? "Operations paused" : `Model: ${d.provider}`,
-           size: 40, color: d.controls.emergency_stop ? BRAND_RED : "#7FD8FF" }]);
-  }, [dashboard]);
-  useEffect(() => () => tex.dispose(), [tex]);
-  const rings = useRef<THREE.Group>(null);
-  const busy = (dashboard?.agents_working ?? 0) > 0;
-  useFrame(({ clock }) => {
-    if (!rings.current || reducedMotion) return;
-    const t = clock.elapsedTime;
-    rings.current.children.forEach((c, i) => { c.rotation.z = t * (busy ? 0.9 : 0.25) * (i % 2 ? -1 : 1); });
-  });
-  return (
-    <group position={[0, 0, MAIN_Z]}>
-      <mesh position={[0, 0.4, 0]}><cylinderGeometry args={[3.6, 3.9, 0.4, 64]} /><meshStandardMaterial color="#0B1430" metalness={0.8} roughness={0.25} /></mesh>
-      <mesh rotation-x={-Math.PI / 2} position={[0, 0.61, 0]}><ringGeometry args={[3.3, 3.5, 96]} />
-        <meshBasicMaterial color={glow(busy ? "#5BF0D2" : CYAN, busy ? 2.4 : 1.4)} toneMapped={false} /></mesh>
-      <mesh position={[0, 1.4, 0]}><cylinderGeometry args={[0.18, 0.18, 1.6, 16]} /><meshBasicMaterial color={glow(CYAN, 1.6)} toneMapped={false} transparent opacity={0.8} /></mesh>
-      <group ref={rings} position={[0, 1.4, 0]}>
-        {[2.6, 2.2, 1.8].map((r, i) => (
-          <mesh key={r} rotation-x={Math.PI / 2} position={[0, i * 0.35, 0]}>
-            <torusGeometry args={[r, 0.025, 6, 120, Math.PI * (1.2 + i * 0.25)]} />
-            <meshBasicMaterial color={glow(i === 1 ? COPPER : CYAN, 2)} toneMapped={false} />
-          </mesh>
-        ))}
-      </group>
-      {[0, Math.PI].map((r) => (
-        <group key={r} rotation-y={r}>
-          <mesh position={[0, 4, 0.04]}><planeGeometry args={[6.4, 3.6]} />
-            <meshBasicMaterial map={tex} transparent toneMapped={false} side={THREE.FrontSide} /></mesh>
-        </group>
-      ))}
-      <mesh ref={screenRef} position={[0, 4, 0]}><boxGeometry args={[6.4, 3.6, 0.04]} />
-        <meshBasicMaterial color="#03101F" transparent opacity={0.55} /></mesh>
-    </group>
-  );
+  return <OrbitControls ref={controls} makeDefault enableDamping maxPolarAngle={Math.PI / 2.02} minDistance={1.5}
+    maxDistance={260} onStart={() => { goal.current.active = false; }} />;
 }
 
 // ------------------------------------------------------------------------------------------------------- plumbing
@@ -213,38 +108,36 @@ function Pipe({ a, b, flow, reducedMotion, r = 0.16 }: { a: Vec3; b: Vec3; flow?
   return (
     <group position={mid} quaternion={q}>
       <mesh><cylinderGeometry args={[r, r, len, 16, 1, true]} />
-        <meshPhysicalMaterial color="#9FDFFF" transparent opacity={0.22} roughness={0.05} metalness={0.1} side={THREE.DoubleSide} depthWrite={false} /></mesh>
+        <meshPhysicalMaterial color="#9FDFFF" transparent opacity={0.25} roughness={0.05} metalness={0.1} side={THREE.DoubleSide} depthWrite={false} /></mesh>
       {tex && <mesh><cylinderGeometry args={[r * 0.55, r * 0.55, len, 12, 1, true]} />
-        <meshBasicMaterial map={tex} transparent toneMapped={false} color={glow("#7FE8FF", 1.6)} depthWrite={false} /></mesh>}
+        <meshBasicMaterial map={tex} transparent toneMapped={false} color={glow("#7FE8FF", 1.4)} depthWrite={false} /></mesh>}
     </group>
   );
 }
 
+const DROP_Y = 3.1;
 function PipeNetwork({ reducedMotion }: { reducedMotion: boolean }) {
   const flow = useMemo(() => flowTexture(), []);
-  const segs: [Vec3, Vec3][] = [
-    [[-15, PIPE_Y, 7.5], [-15, PIPE_Y, -10.5]], [[15, PIPE_Y, 7.5], [15, PIPE_Y, -10.5]],
-    [[-15, PIPE_Y, MAIN_Z], [15, PIPE_Y, MAIN_Z]], [[0, PIPE_Y, MAIN_Z], [0, PIPE_Y, -9.5]],
-  ];
+  const xs = DEPARTMENTS.map((d) => d.pos[0]);
   return (
     <group>
-      {segs.map(([a, b], i) => <Pipe key={i} a={a} b={b} flow={flow} reducedMotion={reducedMotion} />)}
-      {DEPARTMENTS.map((d) => <Pipe key={`drop-${d.id}`} a={[d.pos[0], PIPE_Y, d.pos[2]]} b={[d.pos[0], 3.6, d.pos[2]]} r={0.1} flow={flow} reducedMotion={reducedMotion} />)}
+      <Pipe a={[Math.min(...xs) - 1, PIPE_Y, MAIN_Z]} b={[Math.max(...xs) + 1, PIPE_Y, MAIN_Z]} flow={flow} reducedMotion={reducedMotion} />
       {DEPARTMENTS.map((d) => (
-        <mesh key={`v-${d.id}`} position={[d.pos[0], PIPE_Y, d.pos[2]]}><sphereGeometry args={[0.28, 20, 20]} />
-          <meshStandardMaterial color={COPPER} emissive={COPPER} emissiveIntensity={0.6} metalness={0.9} roughness={0.25} /></mesh>
+        <group key={d.id}>
+          <Pipe a={[d.pos[0], PIPE_Y, MAIN_Z]} b={[d.pos[0], PIPE_Y, d.pos[2] - 0.9]} r={0.11} flow={flow} reducedMotion={reducedMotion} />
+          <Pipe a={[d.pos[0], PIPE_Y, d.pos[2] - 0.9]} b={[d.pos[0], DROP_Y, d.pos[2] - 0.9]} r={0.08} flow={flow} reducedMotion={reducedMotion} />
+          <mesh position={[d.pos[0], PIPE_Y, MAIN_Z]}><sphereGeometry args={[0.24, 18, 18]} />
+            <meshStandardMaterial color={COPPER} emissive={COPPER} emissiveIntensity={0.35} metalness={0.9} roughness={0.25} /></mesh>
+        </group>
       ))}
     </group>
   );
 }
 
 function routeBetween(from: Dept, to: Dept): THREE.Vector3[] {
-  const up = (d: Dept) => new THREE.Vector3(d.pos[0], PIPE_Y, d.pos[2]);
-  const pts: THREE.Vector3[] = [new THREE.Vector3(from.pos[0], 3.6, from.pos[2]), up(from)];
-  const toMain = (d: Dept) => new THREE.Vector3(d.id === "executive" ? 0 : d.pos[0], PIPE_Y, MAIN_Z);
-  pts.push(toMain(from));
-  if (from.id === "executive" || to.id === "executive") pts.push(new THREE.Vector3(0, PIPE_Y, MAIN_Z));
-  pts.push(toMain(to), up(to), new THREE.Vector3(to.pos[0], 3.6, to.pos[2]));
+  const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  const pts = [v(from.pos[0], DROP_Y, from.pos[2] - 0.9), v(from.pos[0], PIPE_Y, from.pos[2] - 0.9), v(from.pos[0], PIPE_Y, MAIN_Z),
+    v(to.pos[0], PIPE_Y, MAIN_Z), v(to.pos[0], PIPE_Y, to.pos[2] - 0.9), v(to.pos[0], DROP_Y, to.pos[2] - 0.9)];
   return pts.filter((p, i) => i === 0 || p.distanceTo(pts[i - 1]) > 0.01);
 }
 
@@ -263,24 +156,15 @@ function WaterPulse({ from, to, start }: { from: string; to: string; start: numb
   if (!curve) return null;
   return (
     <group ref={ref}>
-      {[0.34, 0.26, 0.2, 0.15, 0.1].map((r, i) => (
+      {[0.3, 0.23, 0.18, 0.13, 0.09].map((r, i) => (
         <mesh key={i}><sphereGeometry args={[r, 16, 16]} /><meshBasicMaterial color={glow("#9FF0FF", 3 - i * 0.4)} transparent opacity={1 - i * 0.15} toneMapped={false} /></mesh>
       ))}
-      <pointLight color="#7FD8FF" intensity={14} distance={8} />
+      <pointLight color="#7FD8FF" intensity={10} distance={7} />
     </group>
   );
 }
 
 // ---------------------------------------------------------------------------------------------------- workstation
-const screenTextures = new Map<string, THREE.CanvasTexture>();
-function statusScreen(status: string): THREE.CanvasTexture {
-  if (!screenTextures.has(status)) {
-    const c = STATUS_COLOR[status] ?? STATUS_COLOR.idle;
-    screenTextures.set(status, holoTexture([{ text: STATUS_LABEL[status as keyof typeof STATUS_LABEL]?.toUpperCase() ?? status, size: 120, color: c, weight: 700 }], 640, 360, c));
-  }
-  return screenTextures.get(status)!;
-}
-
 // Each agent gets its own colour; agents added later get one from the palette.
 const BOT_COLORS: Record<string, string> = {
   executive: "#FFE81A",   // Ace: neon yellow
@@ -299,25 +183,30 @@ function botColorFor(id: string): string {
   return PALETTE[h % PALETTE.length];
 }
 
-function Workstation({ agent, dept, selected, onSelect, reducedMotion, occluders }:
-  { agent: Agent; dept: Dept; selected: boolean; onSelect: (id: string) => void; reducedMotion: boolean;
+/** Dark-wood desk pod with three monitors (live agent data), a plaque, a chair, and the agent's round bot. */
+function Workstation({ agent, agents, dept, selected, onSelect, reducedMotion, occluders }:
+  { agent: Agent; agents: Agent[]; dept: Dept; selected: boolean; onSelect: (id: string) => void; reducedMotion: boolean;
     occluders: React.RefObject<THREE.Object3D>[] }) {
   const color = STATUS_COLOR[agent.status] ?? STATUS_COLOR.idle;
   const active = ["working", "researching", "reviewing"].includes(agent.status);
   const off = agent.status === "stopped";
   const halo = useRef<THREE.Mesh>(null);
-  const screen = useRef<THREE.MeshBasicMaterial>(null);
   const beam = useRef<THREE.MeshBasicMaterial>(null);
   const body = useRef<THREE.Group>(null);
   const head = useRef<THREE.Group>(null);
   const eyes = useRef<THREE.Group>(null);
-  const padRing = useRef<THREE.Mesh>(null);
   const { camera } = useThree();
   const botColor = botColorFor(agent.id);
   const eyeColor = agent.status === "error" ? BRAND_RED : active ? color : "#BFF6FF";
   const [hover, setHover] = useState(false);
-  const label = useMemo(() => textTexture([{ text: dept.label.toUpperCase(), size: 60, color: "#FFFFFF", weight: 700 }], 1200, 120, null, dept.color), [dept]);
-  const screenTex = statusScreen(agent.status);
+  const { fonts } = useBrand();
+  const minute = Math.floor(Date.now() / 60000);
+  const main = useCanvasTexture(() => monitorTexture(agent, dept.role, botColor),
+    [agent.status, agent.current_task_id, agent.last_active_at, agent.last_error, agent.enabled, agent.name, fonts, minute]);
+  const teamKey = agents.map((a) => a.id + a.status).join();
+  const side = useCanvasTexture(() => sideMonitorTexture(agent, agents, botColor), [teamKey, fonts]);
+  const plaque = useCanvasTexture(() => plaqueTexture(dept.role, agent.name, botColor), [dept.role, agent.name, fonts]);
+  const BOT = new THREE.Vector3(0, 1.75, 0.95);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     const m = reducedMotion ? 0 : 1;
@@ -325,11 +214,10 @@ function Workstation({ agent, dept, selected, onSelect, reducedMotion, occluders
       halo.current.rotation.z = t * (active ? 2.2 : 0.4) * m;
       halo.current.scale.setScalar(active ? 1 + Math.sin(t * 5) * 0.1 * m : 1);
     }
-    if (screen.current) screen.current.opacity = off ? 0.15 : active ? 0.85 + Math.sin(t * 12) * 0.08 * m : 0.55;
-    if (beam.current) beam.current.opacity = active ? 0.16 + Math.sin(t * 4) * 0.06 * m : 0;
-    if (body.current) body.current.position.y = 1.75 + (active ? 0.1 + Math.sin(t * 2.4) * 0.08 * m : Math.sin(t * 1.2 + dept.pos[0]) * 0.07 * m);
+    if (beam.current) beam.current.opacity = active ? 0.12 + Math.sin(t * 4) * 0.05 * m : 0;
+    if (body.current) body.current.position.y = BOT.y + (active ? 0.08 + Math.sin(t * 2.4) * 0.06 * m : Math.sin(t * 1.2 + dept.pos[0]) * 0.06 * m);
     if (head.current && body.current?.parent) {
-      // idle bots turn to look at the camera; busy bots face their screen (yaw 0)
+      // idle bots turn to look at the camera; busy bots face their screens (yaw 0)
       let target = 0;
       if (!active && !off) {
         const local = body.current.parent.worldToLocal(camera.position.clone());
@@ -345,89 +233,85 @@ function Workstation({ agent, dept, selected, onSelect, reducedMotion, occluders
       eyes.current.scale.y = agent.status === "error" ? 0.45 : off ? 0.3 : blink;
       eyes.current.position.x = active ? Math.sin(t * 3) * 0.07 * m : 0;
     }
-    if (padRing.current) padRing.current.rotation.z = -t * 0.3 * m;
   });
   const click = (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); onSelect(agent.id); };
-  const ringColor = selected || hover ? glow(dept.color, 3) : glow(dept.color, active ? 2.2 : 1.2);
+  const screenGlow = off ? 0.25 : active ? 1.05 : 0.8;
   return (
-    <group position={dept.pos} rotation-y={dept.facing}>
-      {/* department pad */}
-      <mesh rotation-x={-Math.PI / 2} position={[0, 0.22, 0]}><circleGeometry args={[2.9, 64]} />
-        <meshStandardMaterial color="#0A1226" metalness={0.8} roughness={0.25} emissive={dept.color} emissiveIntensity={selected ? 0.25 : 0.08} /></mesh>
-      <mesh ref={padRing} rotation-x={-Math.PI / 2} position={[0, 0.23, 0]}>
-        <ringGeometry args={[2.8, 2.92, 96, 1, 0, Math.PI * 1.75]} />
-        <meshBasicMaterial color={ringColor} toneMapped={false} />
-      </mesh>
-      <mesh position={[0, 4.6, -2.4]}><planeGeometry args={[6.2, 0.62]} /><meshBasicMaterial map={label} transparent toneMapped={false} side={THREE.DoubleSide} /></mesh>
-      {/* floating desk */}
-      <RoundedBox args={[3, 0.1, 1.2]} radius={0.05} position={[0, 0.98, -0.6]}>
-        <meshPhysicalMaterial color="#0D1838" metalness={0.5} roughness={0.12} clearcoat={1} />
-      </RoundedBox>
-      <mesh position={[0, 0.93, -0.0]}><boxGeometry args={[2.9, 0.025, 0.025]} /><meshBasicMaterial color={glow(color, off ? 0.3 : 2.2)} toneMapped={false} /></mesh>
-      <mesh position={[0, 0.5, -0.6]}><cylinderGeometry args={[0.08, 0.3, 0.9, 16]} /><meshStandardMaterial color="#0B1226" metalness={0.9} roughness={0.2} /></mesh>
-      {/* holographic monitor shows the agent's real state */}
-      <mesh position={[0, 1.75, -1.0]} rotation-x={-0.08}>
-        <planeGeometry args={[1.9, 1.07]} />
-        <meshBasicMaterial ref={screen} map={screenTex} transparent opacity={0.6} toneMapped={false} side={THREE.DoubleSide} depthWrite={false} />
-      </mesh>
-      {/* round robot agent: hovers over the pad, looks at you when idle and at its screen while working */}
-      <group ref={body} position={[0, 1.75, 0.55]} onClick={click}
+    <group position={[dept.pos[0], FLOOR_Y, dept.pos[2]]} rotation-y={dept.facing}>
+      {/* desk: dark wood top, drawer pedestals, plaque on the front edge */}
+      <RoundedBox args={[5.4, 0.09, 1.7]} radius={0.03} position={[0, 0.98, -0.75]}><meshStandardMaterial color={WOOD} roughness={0.45} /></RoundedBox>
+      {[-2.25, 2.25].map((x) => (
+        <RoundedBox key={x} args={[0.8, 0.94, 1.55]} radius={0.03} position={[x, 0.47, -0.75]}><meshStandardMaterial color="#2A1A10" roughness={0.6} /></RoundedBox>
+      ))}
+      <mesh position={[0, 0.55, -1.56]}><boxGeometry args={[3.7, 0.8, 0.04]} /><meshStandardMaterial color="#2A1A10" roughness={0.6} /></mesh>
+      <mesh position={[0, 0.82, 0.13]}><planeGeometry args={[2.2, 0.46]} /><meshBasicMaterial map={plaque} toneMapped={false} /></mesh>
+      <mesh position={[0, 1.035, 0.1]}><boxGeometry args={[5.3, 0.012, 0.02]} /><meshBasicMaterial color={glow(botColor, selected || hover ? 2.4 : 1.1)} toneMapped={false} /></mesh>
+      {/* three monitors: live status in the middle, hand-off team on the sides */}
+      {[[-1.75, 0.42, side], [0, 0, main], [1.75, -0.42, side]].map(([x, r, tex], i) => (
+        <group key={i} position={[x as number, 1.03, -1.25]} rotation-y={r as number}>
+          <mesh position={[0, 0.05, 0]}><boxGeometry args={[0.35, 0.04, 0.25]} /><meshStandardMaterial color="#1B1D21" /></mesh>
+          <mesh position={[0, 0.3, 0]}><boxGeometry args={[0.06, 0.5, 0.06]} /><meshStandardMaterial color="#1B1D21" /></mesh>
+          <mesh position={[0, 0.82, 0]}><boxGeometry args={[i === 1 ? 1.62 : 1.34, i === 1 ? 0.95 : 0.8, 0.06]} /><meshStandardMaterial color="#0C0D10" metalness={0.4} roughness={0.4} /></mesh>
+          <mesh position={[0, 0.82, 0.032]}><planeGeometry args={[i === 1 ? 1.54 : 1.26, i === 1 ? 0.87 : 0.72]} />
+            <meshBasicMaterial map={tex as THREE.Texture} color={new THREE.Color().setScalar(screenGlow)} toneMapped={false} /></mesh>
+        </group>
+      ))}
+      <mesh position={[0, 1.05, -0.45]}><boxGeometry args={[1.2, 0.03, 0.38]} /><meshStandardMaterial color="#202226" /></mesh>
+      <mesh position={[0.95, 1.05, -0.45]}><boxGeometry args={[0.18, 0.03, 0.26]} /><meshStandardMaterial color="#202226" /></mesh>
+      <Plant position={[2.35, 1.03, -1.15]} size={0.42} pot={WOOD_LIGHT} />
+      <OfficeChair position={[0, 0, 0.95]} rotation={0} />
+      {/* round robot agent: hovers at its chair, looks at you when idle and at its screens while working */}
+      <group ref={body} position={BOT.toArray()} onClick={click}
         onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = "pointer"; }}
         onPointerOut={() => { setHover(false); document.body.style.cursor = ""; }}>
         <group ref={head}>
           <mesh>
-            <sphereGeometry args={[0.55, 48, 48]} />
+            <sphereGeometry args={[0.5, 48, 48]} />
             <meshPhysicalMaterial color={botColor} metalness={0.2} roughness={0.25} clearcoat={0.8} clearcoatRoughness={0.15}
-              emissive={botColor} emissiveIntensity={selected || hover ? 0.9 : off ? 0.03 : 0.55} />
+              emissive={botColor} emissiveIntensity={selected || hover ? 0.9 : off ? 0.03 : 0.5} />
           </mesh>
-          {/* glass face */}
           <mesh>
-            <sphereGeometry args={[0.565, 48, 32, Math.PI * 1.5 - 0.95, 1.9, 0.92, 1.25]} />
+            <sphereGeometry args={[0.515, 48, 32, Math.PI * 1.5 - 0.95, 1.9, 0.92, 1.25]} />
             <meshPhysicalMaterial color="#05070F" metalness={0.6} roughness={0.05} clearcoat={1} side={THREE.DoubleSide} />
           </mesh>
-          <group ref={eyes} position={[0, 0.06, -0.56]}>
-            {[-0.17, 0.17].map((x) => (
+          <group ref={eyes} position={[0, 0.055, -0.51]}>
+            {[-0.15, 0.15].map((x) => (
               <mesh key={x} position={[x, 0, 0]} scale={[1, 1.35, 0.45]}>
-                <sphereGeometry args={[0.075, 20, 20]} />
+                <sphereGeometry args={[0.068, 20, 20]} />
                 <meshBasicMaterial color={glow(eyeColor, off ? 0.25 : 2.8)} toneMapped={false} />
               </mesh>
             ))}
           </group>
-          {/* side pods */}
           {[-1, 1].map((sx) => (
-            <mesh key={sx} position={[sx * 0.55, 0, 0]} scale={[0.45, 1, 1]}>
-              <sphereGeometry args={[0.14, 20, 20]} />
+            <mesh key={sx} position={[sx * 0.5, 0, 0]} scale={[0.45, 1, 1]}>
+              <sphereGeometry args={[0.13, 20, 20]} />
               <meshPhysicalMaterial color="#3A4048" metalness={0.85} roughness={0.35} />
             </mesh>
           ))}
-          {/* antenna */}
-          <mesh position={[0, 0.68, 0]}><cylinderGeometry args={[0.02, 0.02, 0.28, 8]} /><meshStandardMaterial color="#C9D6EA" metalness={0.8} roughness={0.3} /></mesh>
-          <mesh position={[0, 0.85, 0]}><sphereGeometry args={[0.07, 16, 16]} /><meshBasicMaterial color={glow(color, off ? 0.3 : 3)} toneMapped={false} /></mesh>
+          <mesh position={[0, 0.62, 0]}><cylinderGeometry args={[0.02, 0.02, 0.26, 8]} /><meshStandardMaterial color="#C9D6EA" metalness={0.8} roughness={0.3} /></mesh>
+          <mesh position={[0, 0.78, 0]}><sphereGeometry args={[0.065, 16, 16]} /><meshBasicMaterial color={glow(color, off ? 0.3 : 3)} toneMapped={false} /></mesh>
         </group>
-        {/* status orbit ring */}
         <mesh ref={halo} rotation-x={Math.PI / 2 - 0.25}>
-          <torusGeometry args={[0.82, 0.03, 8, 64, active ? Math.PI * 1.4 : Math.PI * 2]} />
+          <torusGeometry args={[0.75, 0.028, 8, 64, active ? Math.PI * 1.4 : Math.PI * 2]} />
           <meshBasicMaterial color={glow(color, off ? 0.4 : 2.4)} toneMapped={false} />
         </mesh>
-        {/* hover thruster glow */}
-        <mesh position={[0, -0.62, 0]} rotation-x={Math.PI / 2}>
-          <circleGeometry args={[0.32, 32]} />
+        <mesh position={[0, -0.57, 0]} rotation-x={Math.PI / 2}>
+          <circleGeometry args={[0.3, 32]} />
           <meshBasicMaterial color={glow(botColor, off ? 0.2 : 1.8)} transparent opacity={0.55} toneMapped={false}
             blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
-        <mesh visible={false}><sphereGeometry args={[0.9, 8, 8]} /></mesh>
+        <mesh visible={false}><sphereGeometry args={[0.85, 8, 8]} /></mesh>
       </group>
-      <mesh rotation-x={-Math.PI / 2} position={[0, 0.24, 0.55]}>
-        <circleGeometry args={[0.55, 32]} />
-        <meshBasicMaterial color={glow(botColor, off ? 0.1 : 0.9)} transparent opacity={0.35} toneMapped={false} depthWrite={false} />
+      <mesh rotation-x={-Math.PI / 2} position={[0, 0.02, 0.95]}>
+        <ringGeometry args={[1.05, 1.13, 64]} />
+        <meshBasicMaterial color={glow(botColor, selected || hover ? 2.2 : off ? 0.2 : 0.9)} toneMapped={false} />
       </mesh>
-      {/* light beam while working */}
-      <mesh position={[0, 3.2, 0.55]}><cylinderGeometry args={[0.6, 1, 6, 32, 1, true]} />
-        <meshBasicMaterial ref={beam} color={glow(color, 1.5)} transparent opacity={0} toneMapped={false} side={THREE.DoubleSide}
+      <mesh position={[0, 3.6, 0.95]}><cylinderGeometry args={[0.45, 0.8, 3.6, 32, 1, true]} />
+        <meshBasicMaterial ref={beam} color={glow(color, 1.4)} transparent opacity={0} toneMapped={false} side={THREE.DoubleSide}
           depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
-      {agent.status === "error" && <pointLight position={[0, 2.4, 0.55]} color={BRAND_RED} intensity={10} distance={6} />}
-      {active && <pointLight position={[0, 2.2, 0.55]} color={color} intensity={6} distance={5} />}
-      <Html position={[0, 3.35, 0.55]} center distanceFactor={16} zIndexRange={[10, 0]} occlude={occluders} style={{ pointerEvents: "none" }}>
+      {agent.status === "error" && <pointLight position={[0, 2.4, 0.95]} color={BRAND_RED} intensity={8} distance={5} />}
+      {active && <pointLight position={[0, 2.1, 0.6]} color={color} intensity={5} distance={4} />}
+      <Html position={[0, 3.05, 0.95]} center distanceFactor={14} zIndexRange={[10, 0]} occlude={occluders} style={{ pointerEvents: "none" }}>
         <div className={`tag tag-${agent.status}${selected ? " tag-selected" : ""}`}>
           <strong>{agent.name}</strong><span>{STATUS_LABEL[agent.status]}</span>
         </div>
@@ -435,3 +319,4 @@ function Workstation({ agent, dept, selected, onSelect, reducedMotion, occluders
     </group>
   );
 }
+

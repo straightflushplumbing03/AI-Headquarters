@@ -12,8 +12,14 @@ provider until you add an API key.
 
 | | |
 |---|---|
-| ![Agents working](docs/screenshots/operations-working.jpg) | ![Approvals](docs/screenshots/approvals.jpg) |
-| ![Agent desk](docs/screenshots/agent-desk.jpg) | ![Owner controls](docs/screenshots/controls.jpg) |
+| ![Inside the loft](docs/screenshots/interior.jpg) | ![Live command wall](docs/screenshots/command-wall.jpg) |
+| ![Lounge](docs/screenshots/lounge.jpg) | ![Approvals](docs/screenshots/approvals.jpg) |
+
+**The building.** An oceanfront plaza at sunset (fountain, fire pits, café, the Longevity tower) and the HQ: an
+industrial loft with an ocean window wall, the logo wall, a live command wall, a lounge, bar and game area, and a desk
+pod for every agent, each with its floating round bot and three monitors showing that agent's real status. Click
+**Enter HQ** (or the front doors) to fly inside. Drop a photo at `web/public/dog.jpg` for the Longevity tower portrait.
+Work status and next steps live in `BUILD_STATUS.md`.
 
 ## Run it
 
