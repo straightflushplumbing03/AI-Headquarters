@@ -54,3 +54,29 @@ LANGUAGE sql IMMUTABLE AS $$ SELECT string_to_array(name, '/') $$;
 
 GRANT USAGE ON SCHEMA public, auth, storage TO anon, authenticated, service_role;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO anon, authenticated, service_role;
+
+-- Reproduce Supabase's default privileges for the public schema.
+--
+-- On a hosted Supabase project, tables and sequences created in `public` are
+-- automatically granted to the API roles, so a migration that REVOKEs and then
+-- asserts the app still holds a privilege is testing the real state. A scratch
+-- Postgres has no such defaults: migration 028 revoked grants that were never
+-- made, its assertion raised, and the whole transaction rolled back -- so the
+-- migration set never converged and `verify-migrations.sh` failed on a fresh
+-- database. Setting the defaults here restores the platform behaviour.
+--
+-- The grants themselves are attached to `postgres`, the role that runs the
+-- migrations, because ALTER DEFAULT PRIVILEGES only applies to objects created
+-- by the role that runs it.
+--
+-- Verified against the Supabase docs ("Securing your API"): "By default on
+-- existing projects, tables and functions you create in `public` are
+-- automatically granted SELECT, INSERT, UPDATE, DELETE (or EXECUTE for
+-- functions) to anon, authenticated, and service_role."
+-- https://supabase.com/docs/guides/api/securing-your-api
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+  GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;

@@ -271,6 +271,168 @@ export interface OverviewPayload extends MetricDisclosure {
   competitors: CompetitorCard[]
 }
 
+// ---------------------------------------------------------------------------
+// GEO Intelligence Lab integration payload types.
+//
+// These mirror the Lab's /api/v1 shapes (docs/GEO_LAB_API_SPEC.md in the
+// website repo). Rates are the Lab's own measurements and carry its definition
+// so no display presents them as a platform-reported figure.
+// ---------------------------------------------------------------------------
+
+export interface GeoLabStatusPayload {
+  state: 'connected' | 'degraded' | 'error' | 'unconfigured'
+  configured: boolean
+  missingEnvVars: string[]
+  message: string
+  latencyMs: number | null
+  lastSyncAt: string | null
+  lastSyncStatus: string | null
+  lastSuccessAt: string | null
+  dataFreshnessMinutes: number | null
+  stale: boolean
+  records: {
+    visibility: number
+    visibilityHistory: number
+    competitors: number
+    citations: number
+    geo: number
+    opportunities: number
+    jobs: number
+  }
+  latestRun: {
+    startedAt: string
+    status: string
+    recordsImported: number
+    recordsFetched: number
+    errorMessage: string | null
+  } | null
+  lab: {
+    lastRunAt: string | null
+    lastVisibilityAt: string | null
+    counts: Record<string, number> | null
+  } | null
+}
+
+export interface GeoLabSyncPayload {
+  ok: boolean
+  status: 'succeeded' | 'partial' | 'failed'
+  syncRunId: string | null
+  fetched: number
+  imported: number
+  skipped: number
+  durationMs: number
+  resources: Record<string, { fetched: number; imported: number; error?: string }>
+  errorReason?: string
+  errorMessage?: string
+}
+
+export interface GeoLabJobPayload {
+  lab_job_id: string
+  kind: string
+  status: string
+  requires_approval: boolean
+  requested_by: string | null
+  message: string | null
+  submitted_at: string
+  result: unknown
+  error: string | null
+}
+
+export interface GeoLabMetricsPayload {
+  priorityMarket: string
+  generatedAt: string
+  rateDefinition: string
+  visibility: {
+    observations: number
+    mentionRate: number
+    recommendationRate: number
+    citationRate: number
+    trend: Array<{
+      day: string
+      observations: number
+      mentions: number
+      recommendations: number
+      citations: number
+      mentionRate: number | null
+      recommendationRate: number | null
+      citationRate: number | null
+      avgRank: number | null
+    }>
+  }
+  platforms: Array<{
+    platform: string
+    observations: number
+    mentions: number
+    recommendations: number
+    citations: number
+    mentionRate: number
+    recommendationRate: number
+    citationRate: number
+  }>
+  competitors: Array<{
+    domain: string
+    name: string | null
+    tier: string | null
+    homeCity: string | null
+    appearances: number
+    observations: number
+    shareOfVoice: number | null
+    lastPlatform: string | null
+    lastSeenAt: string | null
+  }>
+  geo: Array<{
+    city: string
+    priority: boolean
+    observations: number
+    mentions: number
+    recommendations: number
+    mentionRate: number | null
+    recommendationRate: number | null
+    avgRank: number | null
+    platforms: number
+    lastObservedAt: string | null
+  }>
+  citations: Array<{
+    domain: string
+    citations: number
+    ownedCitations: number
+    firstSeenAt: string | null
+    lastSeenAt: string | null
+  }>
+  opportunities: {
+    total: number
+    byLayer: Array<{ layer: string; count: number }>
+    items: Array<{
+      title: string | null
+      problem: string | null
+      evidence: string | null
+      url: string | null
+      section: string | null
+      geoLayer: string | null
+      expectedBenefit: string | null
+      difficulty: string | null
+      priority: number | null
+      status: string | null
+    }>
+  }
+  priorityCity: {
+    city: string
+    observations: number
+    mentions: number
+    recommendations: number
+    rows: Array<{
+      query: string | null
+      platform: string | null
+      observed_at: string
+      mentioned: boolean | null
+      recommended: boolean | null
+      rank: number | null
+      status: string | null
+    }>
+    note: string | null
+  }
+}
+
 export const authorityApi = {
   overview: (organizationId: string, windowDays = 30) =>
     request<OverviewPayload>(`/api/ai-authority/overview?${authorityQuery(organizationId, { windowDays })}`),
@@ -398,6 +560,31 @@ export const authorityApi = {
       method: 'POST',
       body: JSON.stringify({ organizationId }),
     }),
+
+  // --- GEO Intelligence Lab integration -----------------------------------
+  // The Lab is a separate application reached over its authenticated /api/v1
+  // API. These calls go through Headquarters' own server routes, which hold
+  // the Lab credential; the browser never sees it.
+  geolabStatus: (organizationId: string) =>
+    request<GeoLabStatusPayload>(`/api/ai-authority/geolab/status?${authorityQuery(organizationId)}`),
+
+  geolabMetrics: (organizationId: string) =>
+    request<GeoLabMetricsPayload>(`/api/ai-authority/geolab/metrics?${authorityQuery(organizationId)}`),
+
+  geolabSync: (organizationId: string) =>
+    request<GeoLabSyncPayload>('/api/ai-authority/geolab/sync', {
+      method: 'POST',
+      body: JSON.stringify({ organizationId }),
+    }),
+
+  geolabJobs: (organizationId: string) =>
+    request<{ jobs: GeoLabJobPayload[] }>(`/api/ai-authority/geolab/jobs?${authorityQuery(organizationId)}`),
+
+  geolabSubmitJob: (organizationId: string, kind: string, params: Record<string, unknown> = {}) =>
+    request<{ ok: boolean; jobId?: string; status?: string; requiresApproval?: boolean; message: string }>(
+      '/api/ai-authority/geolab/jobs',
+      { method: 'POST', body: JSON.stringify({ organizationId, kind, params }) }
+    ),
 
   settings: (organizationId: string) =>
     request<{

@@ -28,6 +28,7 @@ const NAV = [
   { segment: 'experiments', label: 'Experiments' },
   { segment: 'quality', label: 'Technical SEO' },
   { segment: 'operations', label: 'Operations' },
+  { segment: 'geolab', label: 'GEO Lab' },
 ]
 
 export function AuthorityNav() {
